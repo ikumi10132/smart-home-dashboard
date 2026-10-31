@@ -103,12 +103,46 @@ function PowerButtons({ run, busy, power }: { run: (c: Command) => void; busy: b
   );
 }
 
+// 3 列のマス目での固定位置 [行, 列]。SwitchBot のライトのボタンを、リモコンと同じ並びにする
+const BUTTON_SLOTS: Record<string, [number, number]> = {
+  暗く: [0, 1],
+  明るく: [0, 3],
+  暖色: [1, 1],
+  白色: [1, 3],
+  '30分切り': [2, 1],
+  常夜灯: [2, 2],
+  全灯: [2, 3],
+};
+const GRID_COLUMNS = 3;
+
+/** 各ボタンの CSS Grid 上の位置を返す。ボタンがない行は詰め、位置が未定のボタンは下の行に順に並べる */
+function placeButtons(labels: string[]): { gridRow: number; gridColumn: number }[] {
+  const usedRows = [...new Set(labels.flatMap((l) => (BUTTON_SLOTS[l] ? [BUTTON_SLOTS[l][0]] : [])))].sort((a, b) => a - b);
+  let extras = 0;
+  return labels.map((label) => {
+    const slot = BUTTON_SLOTS[label];
+    if (slot) return { gridRow: usedRows.indexOf(slot[0]) + 1, gridColumn: slot[1] };
+    const position = extras++;
+    return {
+      gridRow: usedRows.length + Math.floor(position / GRID_COLUMNS) + 1,
+      gridColumn: (position % GRID_COLUMNS) + 1,
+    };
+  });
+}
+
 function ButtonGrid({ device, run, busy }: { device: Device; run: (c: Command) => void; busy: boolean }) {
   if (!device.buttons?.length) return null;
+  const positions = placeButtons(device.buttons.map((b) => b.label));
   return (
     <div className="btn-grid">
-      {device.buttons.map((b) => (
-        <button key={b.name} className="btn btn-small" disabled={busy} onClick={() => run({ action: 'button', button: b.name })}>
+      {device.buttons.map((b, i) => (
+        <button
+          key={b.name}
+          className="btn btn-small"
+          style={positions[i]}
+          disabled={busy}
+          onClick={() => run({ action: 'button', button: b.name })}
+        >
           {b.label}
         </button>
       ))}

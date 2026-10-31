@@ -53,6 +53,9 @@ async function tokenRequest(params: Record<string, string>): Promise<Tokens> {
 }
 
 export async function login(): Promise<void> {
+  if (!crypto?.subtle) {
+    throw new Error('このブラウザはログインに対応していません。iOS 11 以降の端末でお試しください');
+  }
   const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)));
   const state = base64url(crypto.getRandomValues(new Uint8Array(16)));
   sessionStorage.setItem(PKCE_KEY, JSON.stringify({ verifier, state }));

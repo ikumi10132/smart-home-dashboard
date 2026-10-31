@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { AirconMode, Command, Device } from '../../../api/src/types';
+import { KindIcon } from './Icons';
 
 interface Props {
   device: Device;
@@ -32,12 +33,15 @@ export function DeviceCard({ device, onCommand }: Props) {
   return (
     <article className={`card${isOn ? ' is-on' : ''}${busy ? ' is-busy' : ''}`} aria-busy={busy}>
       <header className="card-head">
-        <div>
-          <h3 className="card-title">{device.name}</h3>
-          <p className="card-meta">
-            {PROVIDER_LABEL[device.provider]}
-            {device.infrared && ' · 赤外線'}
-          </p>
+        <div className="card-id">
+          <span className="card-icon"><KindIcon kind={device.kind} /></span>
+          <div>
+            <h3 className="card-title">{device.name}</h3>
+            <p className="card-meta">
+              {PROVIDER_LABEL[device.provider]}
+              {device.infrared && ' · 赤外線'}
+            </p>
+          </div>
         </div>
         {device.state.power && <span className={`pill${isOn ? ' pill-on' : ''}`}>{isOn ? 'ON' : 'OFF'}</span>}
       </header>
@@ -162,7 +166,7 @@ function AirconControls({ device, run, busy }: { device: Device; run: (c: Comman
       ) : (
         <p className="readout muted">このモードは温度設定なし</p>
       )}
-      <div className="btn-row">
+      <div className="btn-row btn-row-lead">
         <button className="btn btn-primary" disabled={busy} onClick={start}>この設定で運転</button>
         <button className="btn" disabled={busy} onClick={() => run({ action: 'aircon', power: 'off', mode, temperature: effectiveTemp })}>停止</button>
       </div>

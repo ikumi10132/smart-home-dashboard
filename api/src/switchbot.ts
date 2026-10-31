@@ -21,6 +21,10 @@ interface DeviceList {
   deviceList: PhysicalDevice[];
   infraredRemoteList: InfraredDevice[];
 }
+export interface Scene {
+  sceneId: string;
+  sceneName: string;
+}
 
 const AIRCON_MODES: AirconMode[] = ['auto', 'cool', 'dry', 'fan', 'heat'];
 const AIRCON_MODE_CODE: Record<AirconMode, number> = { auto: 1, cool: 2, dry: 3, fan: 4, heat: 5 };
@@ -34,6 +38,31 @@ const TV_BUTTONS: DeviceButton[] = [
   { name: 'channelSub', label: 'CH −' },
   { name: 'setMute', label: 'ミュート' },
 ];
+
+const LIGHT_BUTTONS: DeviceButton[] = [
+  { name: 'brightnessDown', label: '暗く' },
+  { name: 'brightnessUp', label: '明るく' },
+];
+
+// 赤外線リモコンの API にないボタン (調色・常夜灯など) は、SwitchBot アプリの手動シーンで実行する。
+// 「<機器名> <ボタン名>」という名前のシーンを、その機器のボタンとして表示する。
+const SCENE_PREFIX = 'scene:';
+const SCENE_BUTTON_ORDER = ['暖色', '白色', '30分切り', '常夜灯', '全灯'];
+
+export function sceneButtons(deviceName: string, scenes: Scene[]): DeviceButton[] {
+  const rank = (label: string) => {
+    const i = SCENE_BUTTON_ORDER.indexOf(label);
+    return i === -1 ? SCENE_BUTTON_ORDER.length : i;
+  };
+  return scenes
+    .flatMap((s) => {
+      const name = s.sceneName.trim();
+      if (!name.startsWith(deviceName)) return [];
+      const label = name.slice(deviceName.length).trim();
+      return label ? [{ name: `${SCENE_PREFIX}${s.sceneId}`, label }] : [];
+    })
+    .sort((a, b) => rank(a.label) - rank(b.label));
+}
 
 export function sign(token: string, secret: string, t: string, nonce: string): string {
   return createHmac('sha256', secret).update(token + t + nonce).digest('base64');
@@ -110,10 +139,21 @@ export class SwitchBotClient {
     return json.body;
   }
 
+  private async listScenes(): Promise<Scene[]> {
+    try {
+      return await cached('switchbot:scenes', LIST_TTL, () => this.request<Scene[]>('/scenes'));
+    } catch (e) {
+      // シーンが取れなくても機器の一覧と基本操作は使えるようにする
+      console.warn('SwitchBot scenes error', e);
+      return [];
+    }
+  }
+
   async listDevices(): Promise<Device[]> {
-    const list = await cached('switchbot:list', LIST_TTL, () =>
-      this.request<DeviceList>('/devices'),
-    );
+    const [list, scenes] = await Promise.all([
+      cached('switchbot:list', LIST_TTL, () => this.request<DeviceList>('/devices')),
+      this.listScenes(),
+    ]);
 
     const physical = list.deviceList.flatMap((d) => {
       const kind = physicalKind(d.deviceType);
@@ -146,6 +186,8 @@ export class SwitchBotClient {
     for (const r of list.infraredRemoteList) {
       const kind = infraredKind(r.remoteType);
       if (!kind) continue;
+      const preset = kind === 'tv' ? TV_BUTTONS : kind === 'light' ? LIGHT_BUTTONS : [];
+      const buttons = kind === 'aircon' ? [] : [...preset, ...sceneButtons(r.deviceName, scenes)];
       devices.push({
         id: `switchbot:${r.deviceId}`,
         provider: 'switchbot',
@@ -160,7 +202,7 @@ export class SwitchBotClient {
             temperatures: Object.fromEntries(AIRCON_MODES.map((m) => [m, AIRCON_TEMPS])),
           },
         }),
-        ...(kind === 'tv' && { buttons: TV_BUTTONS }),
+        ...(buttons.length > 0 && { buttons }),
       });
     }
     return devices;
@@ -181,7 +223,18 @@ export class SwitchBotClient {
         body = { command: 'press', parameter: 'default', commandType: 'command' };
         break;
       case 'button':
-        if (!TV_BUTTONS.some((b) => b.name === command.button) && command.button !== 'turnOff') {
+        if (command.button.startsWith(SCENE_PREFIX)) {
+          const sceneId = command.button.slice(SCENE_PREFIX.length);
+          if (!(await this.listScenes()).some((s) => s.sceneId === sceneId)) {
+            throw new Error('シーンが見つかりません。SwitchBot アプリで確認してください');
+          }
+          await this.request(`/scenes/${encodeURIComponent(sceneId)}/execute`, { method: 'POST' });
+          return;
+        }
+        if (
+          ![...TV_BUTTONS, ...LIGHT_BUTTONS].some((b) => b.name === command.button) &&
+          command.button !== 'turnOff'
+        ) {
           throw new Error(`未対応のボタンです: ${command.button}`);
         }
         body = { command: command.button, parameter: 'default', commandType: 'command' };

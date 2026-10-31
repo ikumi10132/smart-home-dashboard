@@ -1,20 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { Command, Device, DevicesResponse, Kind } from '../../api/src/types';
+import { useCallback, useEffect, useState } from 'react';
+import type { Command, Device, DevicesResponse } from '../../api/src/types';
 import { AuthError, fetchDevices, sendCommand } from './api';
 import { handleRedirect, isLoggedIn, login, logout } from './auth';
-import { DeviceCard } from './components/DeviceCard';
-import { SensorStrip } from './components/SensorStrip';
+import { Clock } from './components/Clock';
+import { RoomPanel } from './components/RoomPanel';
+import { WeatherPanel } from './components/WeatherPanel';
 import { loadConfig } from './config';
+import { ROOMS } from './rooms';
 
 const POLL_MS = 2 * 60_000; // API の回数制限があるので控えめに
+const ROOM_KEY = 'shd.room';
+const ALL_ROOMS = 'all';
 
-const SECTIONS: { kinds: Kind[]; title: string }[] = [
-  { kinds: ['aircon'], title: 'エアコン' },
-  { kinds: ['light'], title: '照明' },
-  { kinds: ['switch', 'bot'], title: 'スイッチ・家電' },
-  { kinds: ['curtain'], title: 'カーテン' },
-  { kinds: ['tv', 'ir'], title: 'テレビ・リモコン' },
-];
+function loadRoomFilter(): string {
+  try {
+    const saved = localStorage.getItem(ROOM_KEY);
+    return ROOMS.some((r) => r.id === saved) ? saved! : ALL_ROOMS;
+  } catch {
+    return ALL_ROOMS;
+  }
+}
 
 type Phase = { name: 'loading' } | { name: 'login' } | { name: 'ready' } | { name: 'error'; message: string };
 
@@ -80,6 +85,16 @@ function Dashboard({ onAuthError }: { onAuthError: () => void }) {
   const [data, setData] = useState<DevicesResponse | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
+  const [roomFilter, setRoomFilter] = useState(loadRoomFilter);
+
+  const chooseRoom = (id: string) => {
+    setRoomFilter(id);
+    try {
+      localStorage.setItem(ROOM_KEY, id);
+    } catch {
+      /* 保存できなくても切り替えは動く */
+    }
+  };
 
   const showToast = useCallback((text: string, error = false) => {
     setToast({ text, error });
@@ -126,23 +141,25 @@ function Dashboard({ onAuthError }: { onAuthError: () => void }) {
     [handleError, showToast],
   );
 
-  const sensors = useMemo(() => data?.devices.filter((d) => d.kind === 'sensor') ?? [], [data]);
   const updated = data ? new Date(data.fetchedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : null;
+  const visibleRooms = ROOMS.filter((r) => roomFilter === ALL_ROOMS || r.id === roomFilter);
 
   return (
     <div className="app">
       <header className="topbar">
-        <div>
-          <h1>おうち</h1>
-          {updated && <p className="muted small">{updated} 更新</p>}
-        </div>
-        <div className="topbar-actions">
-          <button className="btn btn-small" onClick={() => void refresh()} disabled={refreshing}>
-            {refreshing ? '更新中…' : '更新'}
-          </button>
-          <button className="btn btn-small btn-ghost" onClick={logout}>ログアウト</button>
+        <Clock />
+        <div className="topbar-side">
+          <div className="topbar-actions">
+            <button className="btn btn-small" onClick={() => void refresh()} disabled={refreshing}>
+              {refreshing ? '更新中…' : '更新'}
+            </button>
+            <button className="btn btn-small btn-ghost" onClick={logout}>ログアウト</button>
+          </div>
+          {updated && <p className="muted small">機器情報 {updated} 更新</p>}
         </div>
       </header>
+
+      <WeatherPanel />
 
       {data?.errors.map((e) => (
         <p key={e.provider} className="banner">
@@ -150,27 +167,27 @@ function Dashboard({ onAuthError }: { onAuthError: () => void }) {
         </p>
       ))}
 
+      <nav className="room-tabs" aria-label="部屋の切り替え">
+        {[{ id: ALL_ROOMS, name: 'すべて' }, ...ROOMS].map((r) => (
+          <button
+            key={r.id}
+            className={r.id === roomFilter ? 'active' : ''}
+            aria-pressed={r.id === roomFilter}
+            onClick={() => chooseRoom(r.id)}
+          >
+            {r.name}
+          </button>
+        ))}
+      </nav>
+
       {!data && <p className="muted center-text">機器を読み込み中…</p>}
 
-      <SensorStrip sensors={sensors} />
-
-      {SECTIONS.map(({ kinds, title }) => {
-        const devices = data?.devices.filter((d) => kinds.includes(d.kind)) ?? [];
-        if (!devices.length) return null;
-        return (
-          <section key={title} className="section">
-            <h2>{title}</h2>
-            <div className="grid">
-              {devices.map((d) => (
-                <DeviceCard key={d.id} device={d} onCommand={onCommand} />
-              ))}
-            </div>
-          </section>
-        );
-      })}
-
-      {data && data.devices.length === 0 && data.errors.length === 0 && (
-        <p className="muted center-text">操作できる機器が見つかりませんでした</p>
+      {data && (
+        <div className={`rooms${visibleRooms.length > 1 ? ' rooms-split' : ''}`}>
+          {visibleRooms.map((room) => (
+            <RoomPanel key={room.id} room={room} devices={data.devices} onCommand={onCommand} />
+          ))}
+        </div>
       )}
 
       {toast && (

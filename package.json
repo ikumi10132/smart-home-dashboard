@@ -1,0 +1,14 @@
+{
+  "name": "smart-home-dashboard",
+  "private": true,
+  "type": "module",
+  "workspaces": ["api", "web", "infra"],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test -w api",
+    "dev": "npm run dev -w web",
+    "build": "npm run build -w web",
+    "deploy": "npm run build -w web && npm run deploy -w infra"
+  },
+  "engines": { "node": ">=22" }
+}

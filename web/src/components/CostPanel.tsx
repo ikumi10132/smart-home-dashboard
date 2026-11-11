@@ -37,7 +37,14 @@ export function CostPanel({ onAuthError }: { onAuthError: () => void }) {
       <summary>
         <span className="costs-title">AWS の利用料</span>
         <span className="costs-summary">
-          {costs ? `${monthLabel(costs.thisMonth.start)} ${fmt(costs.thisMonth.total)}` : error ? '取得できませんでした' : '読み込み中…'}
+          {costs
+            ? `${monthLabel(costs.thisMonth.start)} ${fmt(costs.thisMonth.total)}` +
+              (plan?.type === 'FREE' && plan.remainingCredits !== undefined
+                ? ` · クレジット残り ${money(plan.remainingCredits, plan.creditUnit ?? 'USD')}`
+                : '')
+            : error
+              ? '取得できませんでした'
+              : '読み込み中…'}
         </span>
       </summary>
 

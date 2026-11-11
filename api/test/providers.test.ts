@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import { test } from 'node:test';
 import { mapAppliance, mapSensor } from '../src/remo.js';
-import { costPeriod, summarize } from '../src/costs.js';
+import { costPeriod, fetchCosts, isFresh, summarize } from '../src/costs.js';
 import { infraredKind, physicalKind, sceneButtons, sign } from '../src/switchbot.js';
 
 test('SwitchBot の署名は HMAC-SHA256 の Base64', () => {
@@ -91,4 +91,26 @@ test('利用料をサービス別にまとめる', () => {
     { name: 'Amazon API Gateway', amount: 0.11 },
     { name: 'AWS Cost Explorer', amount: 0.02 },
   ]);
+});
+
+test('Cost Explorer が使えなくてもプラン情報は返す', async () => {
+  const denied = Object.assign(new Error('denied'), { name: 'AccessDeniedException' });
+  const res = await fetchCosts(
+    () => Promise.reject(denied),
+    () => Promise.resolve({ type: 'FREE', remainingCredits: 180.5, creditUnit: 'USD' }),
+  );
+  assert.equal(res.thisMonth, undefined);
+  assert.match(res.costsError ?? '', /権限がありません/);
+  assert.equal(res.plan?.remainingCredits, 180.5);
+  // 利用額が取れていないときは 1 時間で取り直す
+  const now = new Date(res.fetchedAt).getTime();
+  assert.equal(isFresh(res, now + 30 * 60_000), true);
+  assert.equal(isFresh(res, now + 2 * 60 * 60_000), false);
+});
+
+test('両方失敗したらエラーにする', async () => {
+  await assert.rejects(
+    fetchCosts(() => Promise.reject(new Error('ce')), () => Promise.reject(new Error('ft'))),
+    /ce/,
+  );
 });

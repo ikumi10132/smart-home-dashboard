@@ -29,22 +29,25 @@ export function CostPanel({ onAuthError }: { onAuthError: () => void }) {
   }, [onAuthError]);
 
   const fmt = (n: number) => money(n, costs?.currency ?? 'USD');
-  const estimate = costs && estimateMonthEnd(costs.thisMonth.total, costs.thisMonth.start, costs.fetchedAt);
+  const usage = costs?.thisMonth && costs.lastMonth ? { thisMonth: costs.thisMonth, lastMonth: costs.lastMonth } : null;
+  const estimate = usage && costs && estimateMonthEnd(usage.thisMonth.total, usage.thisMonth.start, costs.fetchedAt);
   const plan = costs?.plan;
+  const credits =
+    plan?.type === 'FREE' && plan.remainingCredits !== undefined ? money(plan.remainingCredits, plan.creditUnit ?? 'USD') : null;
+
+  const headline = [
+    usage && `${monthLabel(usage.thisMonth.start)} ${fmt(usage.thisMonth.total)}`,
+    credits && `クレジット残り ${credits}`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <details className="panel costs">
       <summary>
         <span className="costs-title">AWS の利用料</span>
         <span className="costs-summary">
-          {costs
-            ? `${monthLabel(costs.thisMonth.start)} ${fmt(costs.thisMonth.total)}` +
-              (plan?.type === 'FREE' && plan.remainingCredits !== undefined
-                ? ` · クレジット残り ${money(plan.remainingCredits, plan.creditUnit ?? 'USD')}`
-                : '')
-            : error
-              ? '取得できませんでした'
-              : '読み込み中…'}
+          {costs ? headline || '利用額を取得できませんでした' : error ? '取得できませんでした' : '読み込み中…'}
         </span>
       </summary>
 
@@ -53,31 +56,36 @@ export function CostPanel({ onAuthError }: { onAuthError: () => void }) {
       {costs && (
         <div className="costs-body">
           <dl className="costs-facts">
-            <div><dt>今月 (昨日まで)</dt><dd>{fmt(costs.thisMonth.total)}</dd></div>
-            {estimate !== null && <div><dt>月末の目安</dt><dd>{fmt(estimate)}</dd></div>}
-            <div><dt>先月 ({monthLabel(costs.lastMonth.start)})</dt><dd>{fmt(costs.lastMonth.total)}</dd></div>
-            {plan?.type === 'FREE' && plan.remainingCredits !== undefined && (
-              <div>
-                <dt>無料クレジット残り</dt>
-                <dd>{money(plan.remainingCredits, plan.creditUnit ?? 'USD')}</dd>
-              </div>
+            {usage && (
+              <>
+                <div><dt>今月 (昨日まで)</dt><dd>{fmt(usage.thisMonth.total)}</dd></div>
+                {estimate !== null && <div><dt>月末の目安</dt><dd>{fmt(estimate)}</dd></div>}
+                <div><dt>先月 ({monthLabel(usage.lastMonth.start)})</dt><dd>{fmt(usage.lastMonth.total)}</dd></div>
+              </>
+            )}
+            {credits && <div><dt>無料クレジット残り</dt><dd>{credits}</dd></div>}
+            {plan?.type === 'FREE' && plan.expiresAt && (
+              <div><dt>無料プランの期限</dt><dd>{new Date(plan.expiresAt).toLocaleDateString('ja-JP')}</dd></div>
             )}
           </dl>
 
-          {costs.thisMonth.services.length > 0 ? (
-            <ul className="costs-services" aria-label="今月のサービス別">
-              {costs.thisMonth.services.map((s) => (
-                <li key={s.name}><span>{s.name}</span><span>{fmt(s.amount)}</span></li>
-              ))}
-            </ul>
-          ) : (
-            <p className="muted small">今月の利用はまだありません</p>
-          )}
+          {costs.costsError && <p className="banner">利用額: {costs.costsError}</p>}
+
+          {usage &&
+            (usage.thisMonth.services.length > 0 ? (
+              <ul className="costs-services" aria-label="今月のサービス別">
+                {usage.thisMonth.services.map((s) => (
+                  <li key={s.name}><span>{s.name}</span><span>{fmt(s.amount)}</span></li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted small">今月の利用はまだありません</p>
+            ))}
 
           <p className="muted small">
-            クレジット適用前の金額です。
-            {plan?.type === 'FREE' && plan.expiresAt && `無料プランの期限: ${new Date(plan.expiresAt).toLocaleDateString('ja-JP')}。`}
-            {new Date(costs.fetchedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} 取得 (12 時間ごと)
+            {usage && 'クレジット適用前の金額です。'}
+            {new Date(costs.fetchedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} 取得
+            {costs.costsError ? ' (1 時間ごとに再取得)' : ' (12 時間ごと)'}
           </p>
         </div>
       )}

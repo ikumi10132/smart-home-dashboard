@@ -75,12 +75,14 @@ export interface ServiceCost {
 }
 
 export interface CostsResponse {
-  /** 通貨 (通常は USD) */
-  currency: string;
+  /** 通貨 (通常は USD)。利用額が取れなかった場合は省略 */
+  currency?: string;
   /** 今月 1 日 (UTC) から昨日までの利用額。クレジット適用前 */
-  thisMonth: { start: string; total: number; services: ServiceCost[] };
+  thisMonth?: { start: string; total: number; services: ServiceCost[] };
   /** 先月の利用額。クレジット適用前 */
-  lastMonth: { start: string; total: number };
+  lastMonth?: { start: string; total: number };
+  /** 利用額 (Cost Explorer) が取れなかった理由。プラン情報だけ返すときに入る */
+  costsError?: string;
   /** 無料プランのクレジット残高など。取得できない場合は省略 */
   plan?: {
     type: string;

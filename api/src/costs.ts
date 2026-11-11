@@ -33,13 +33,16 @@ export function costPeriod(now: Date): { start: string; thisMonth: string; end: 
   };
 }
 
+/** Cost Explorer から取れる部分 (すべて必須) */
+export type Usage = Required<Pick<CostsResponse, 'currency' | 'thisMonth' | 'lastMonth'>>;
+
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Cost Explorer の月別・サービス別の結果を画面用に変換する */
 export function summarize(
   results: ResultByTime[],
   period: { start: string; thisMonth: string },
-): Omit<CostsResponse, 'plan' | 'fetchedAt'> {
+): Usage {
   let currency = 'USD';
   const services = (start: string): ServiceCost[] => {
     const month = results.find((r) => r.TimePeriod?.Start === start);
@@ -78,15 +81,7 @@ function explain(e: unknown): Error {
   return e instanceof Error ? e : new Error(String(e));
 }
 
-async function fetchCosts(): Promise<CostsResponse> {
-  try {
-    return await fetchCostsRaw();
-  } catch (e) {
-    throw explain(e);
-  }
-}
-
-async function fetchCostsRaw(): Promise<CostsResponse> {
+async function fetchUsage(): Promise<Usage> {
   const period = costPeriod(new Date());
   const results: ResultByTime[] = [];
   let token: string | undefined;
@@ -105,27 +100,40 @@ async function fetchCostsRaw(): Promise<CostsResponse> {
     results.push(...(res.ResultsByTime ?? []));
     token = res.NextPageToken;
   } while (token);
-
-  // プラン情報 (無料 API) は取れなくても利用額だけ表示する
-  const plan = await freeTier.send(new GetAccountPlanStateCommand({})).then(
-    (p) => ({
-      type: p.accountPlanType ?? 'UNKNOWN',
-      status: p.accountPlanStatus,
-      remainingCredits: p.accountPlanRemainingCredits?.amount,
-      creditUnit: p.accountPlanRemainingCredits?.unit,
-      expiresAt: p.accountPlanExpirationDate?.toISOString(),
-    }),
-    (e) => {
-      console.warn('GetAccountPlanState failed', e);
-      return undefined;
-    },
-  );
-
-  return { ...summarize(results, period), plan, fetchedAt: new Date().toISOString() };
+  return summarize(results, period);
 }
 
-const isFresh = (c: CostsResponse | undefined): c is CostsResponse =>
-  !!c?.fetchedAt && Date.now() - new Date(c.fetchedAt).getTime() < COST_TTL_MS;
+async function fetchPlan(): Promise<NonNullable<CostsResponse['plan']>> {
+  const p = await freeTier.send(new GetAccountPlanStateCommand({}));
+  return {
+    type: p.accountPlanType ?? 'UNKNOWN',
+    status: p.accountPlanStatus,
+    remainingCredits: p.accountPlanRemainingCredits?.amount,
+    creditUnit: p.accountPlanRemainingCredits?.unit,
+    expiresAt: p.accountPlanExpirationDate?.toISOString(),
+  };
+}
+
+// 利用額 (Cost Explorer) とプラン情報 (Free Tier API) は片方だけでも表示する。
+// 無料プランで Cost Explorer が使えなくても、クレジット残高と期限は見られるようにするため
+export async function fetchCosts(
+  usage: () => Promise<Usage> = fetchUsage,
+  planState: () => Promise<NonNullable<CostsResponse['plan']>> = fetchPlan,
+): Promise<CostsResponse> {
+  const [u, p] = await Promise.allSettled([usage(), planState()]);
+  if (u.status === 'rejected') console.warn('GetCostAndUsage failed', u.reason);
+  if (p.status === 'rejected') console.warn('GetAccountPlanState failed', p.reason);
+  if (u.status === 'rejected' && p.status === 'rejected') throw explain(u.reason);
+  return {
+    ...(u.status === 'fulfilled' ? u.value : { costsError: explain(u.reason).message }),
+    plan: p.status === 'fulfilled' ? p.value : undefined,
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+// 利用額が取れなかったとき (Cost Explorer の有効化待ちなど) は 1 時間で取り直す
+export const isFresh = (c: CostsResponse | undefined, now = Date.now()): c is CostsResponse =>
+  !!c?.fetchedAt && now - new Date(c.fetchedAt).getTime() < (c.costsError ? 60 * 60_000 : COST_TTL_MS);
 
 // Lambda はしばらく使わないとメモリが消えるので、結果を SSM パラメータ (標準・無料) にも保存する
 async function loadSaved(name: string): Promise<CostsResponse | undefined> {

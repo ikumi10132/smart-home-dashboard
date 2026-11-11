@@ -7,6 +7,8 @@
     "test": "tsx --test test/*.test.ts"
   },
   "devDependencies": {
+    "@aws-sdk/client-cost-explorer": "^3.1166.0",
+    "@aws-sdk/client-freetier": "^3.1166.0",
     "@aws-sdk/client-ssm": "^3.1161.0",
     "@types/aws-lambda": "^8.10.164",
     "@types/node": "^26.6.6",

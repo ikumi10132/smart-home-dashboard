@@ -13,6 +13,7 @@ import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import type { Construct } from 'constructs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -73,6 +74,13 @@ export class DashboardStack extends cdk.Stack {
     });
 
     // ---------- API (API Gateway + Lambda) ----------
+    // 利用料 (Cost Explorer は 1 回 0.01 USD) の取得結果を保存しておく場所。標準パラメータなので無料
+    const costCache = new ssm.StringParameter(this, 'CostCache', {
+      parameterName: `${PARAM_PREFIX}/cache/costs`,
+      stringValue: '{}',
+      description: 'Lambda が書き込む利用料のキャッシュ (手で編集しない)',
+    });
+
     const fn = new nodejs.NodejsFunction(this, 'ApiFunction', {
       entry: path.join(root, 'api/src/handler.ts'),
       projectRoot: root,
@@ -81,8 +89,9 @@ export class DashboardStack extends cdk.Stack {
       architecture: lambda.Architecture.ARM_64,
       memorySize: 256,
       timeout: cdk.Duration.seconds(15),
-      environment: { PARAM_PREFIX, NODE_OPTIONS: '--enable-source-maps' },
-      bundling: { minify: true, sourceMap: true },
+      environment: { PARAM_PREFIX, COST_CACHE_PARAM: costCache.parameterName, NODE_OPTIONS: '--enable-source-maps' },
+      // Lambda 標準の SDK は版が古いことがあるので、使う SDK も一緒にまとめる
+      bundling: { minify: true, sourceMap: true, externalModules: [] },
       logGroup: new logs.LogGroup(this, 'ApiLogs', {
         retention: logs.RetentionDays.ONE_MONTH,
         removalPolicy: cdk.RemovalPolicy.DESTROY,
@@ -92,6 +101,15 @@ export class DashboardStack extends cdk.Stack {
       new iam.PolicyStatement({
         actions: ['ssm:GetParameters'],
         resources: [`arn:aws:ssm:${this.region}:${this.account}:parameter${PARAM_PREFIX}/*`],
+      }),
+    );
+    costCache.grantRead(fn);
+    costCache.grantWrite(fn);
+    // Cost Explorer / Free Tier の読み取りはリソース単位の指定ができないので * になる (読み取りのみ)
+    fn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['ce:GetCostAndUsage', 'freetier:GetAccountPlanState'],
+        resources: ['*'],
       }),
     );
 
@@ -116,6 +134,7 @@ export class DashboardStack extends cdk.Stack {
       methods: [apigw.HttpMethod.POST],
       integration,
     });
+    api.addRoutes({ path: '/costs', methods: [apigw.HttpMethod.GET], integration });
     const stage = api.defaultStage?.node.defaultChild as apigw.CfnStage;
     stage.defaultRouteSettings = { throttlingBurstLimit: 20, throttlingRateLimit: 10 };
 

@@ -3,12 +3,14 @@ import type {
   APIGatewayProxyEventV2WithJWTAuthorizer,
   APIGatewayProxyStructuredResultV2,
 } from 'aws-lambda';
+import { getCosts } from './costs.js';
 import { RemoClient } from './remo.js';
 import { SwitchBotClient } from './switchbot.js';
 import type { Command, Device, DevicesResponse, ProviderError } from './types.js';
 
 const PREFIX = process.env.PARAM_PREFIX ?? '/smart-home-dashboard';
 const ssm = new SSMClient({});
+const COST_CACHE_PARAM = process.env.COST_CACHE_PARAM ?? `${PREFIX}/cache/costs`;
 
 interface Clients {
   switchbot?: SwitchBotClient;
@@ -121,6 +123,8 @@ export async function handler(
       case 'POST /devices/{id}/command':
         await sendCommand(event.pathParameters?.id ?? '', event.body);
         return json(200, { ok: true });
+      case 'GET /costs':
+        return json(200, await getCosts(COST_CACHE_PARAM));
       default:
         return json(404, { message: 'Not Found' });
     }

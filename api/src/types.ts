@@ -68,3 +68,26 @@ export interface DevicesResponse {
   errors: ProviderError[];
   fetchedAt: string;
 }
+
+export interface ServiceCost {
+  name: string;
+  amount: number;
+}
+
+export interface CostsResponse {
+  /** 通貨 (通常は USD) */
+  currency: string;
+  /** 今月 1 日 (UTC) から昨日までの利用額。クレジット適用前 */
+  thisMonth: { start: string; total: number; services: ServiceCost[] };
+  /** 先月の利用額。クレジット適用前 */
+  lastMonth: { start: string; total: number };
+  /** 無料プランのクレジット残高など。取得できない場合は省略 */
+  plan?: {
+    type: string;
+    status?: string;
+    remainingCredits?: number;
+    creditUnit?: string;
+    expiresAt?: string;
+  };
+  fetchedAt: string;
+}

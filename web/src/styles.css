@@ -383,3 +383,35 @@ ol, ul { list-style: none; }
   }
   .topbar-side .small { display: none; }
 }
+
+/* ---- AWS costs ---- */
+.costs { padding: 0; }
+.costs summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  cursor: pointer;
+  list-style: none;
+}
+.costs summary::-webkit-details-marker { display: none; }
+.costs summary::after { content: '▾'; color: var(--muted); transition: transform 0.2s; }
+.costs[open] summary::after { transform: rotate(180deg); }
+.costs summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--radius); }
+.costs-title { font-weight: 600; }
+.costs-summary { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.costs-body { padding: 0 20px 20px; display: flex; flex-direction: column; gap: 14px; }
+.costs-facts { display: flex; flex-wrap: wrap; gap: 12px 28px; }
+.costs-facts dt { color: var(--muted); font-size: 11px; }
+.costs-facts dd { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.costs-services { display: flex; flex-direction: column; }
+.costs-services li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+}
+.costs-services li span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }

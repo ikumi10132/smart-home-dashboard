@@ -1,4 +1,4 @@
-import type { Command, DevicesResponse } from '../../api/src/types';
+import type { Command, CostsResponse, DevicesResponse } from '../../api/src/types';
 import { getAccessToken } from './auth';
 import { getConfig } from './config';
 
@@ -24,3 +24,6 @@ export const sendCommand = (deviceId: string, command: Command) =>
     method: 'POST',
     body: JSON.stringify(command),
   });
+
+// サーバー側で 12 時間キャッシュしている (Cost Explorer は 1 回 0.01 USD のため)
+export const fetchCosts = () => call<CostsResponse>('/costs');

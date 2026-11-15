@@ -3,7 +3,6 @@ import type { Command, Device, DevicesResponse } from '../../api/src/types';
 import { AuthError, fetchDevices, sendCommand } from './api';
 import { handleRedirect, isLoggedIn, login, logout } from './auth';
 import { Clock } from './components/Clock';
-import { CostPanel } from './components/CostPanel';
 import { RoomPanel } from './components/RoomPanel';
 import { WeatherPanel } from './components/WeatherPanel';
 import { loadConfig } from './config';
@@ -191,7 +190,6 @@ function Dashboard({ onAuthError }: { onAuthError: () => void }) {
         </div>
       )}
 
-      <CostPanel onAuthError={onAuthError} />
 
       {toast && (
         <div className={`toast${toast.error ? ' toast-error' : ''}`} role="status">

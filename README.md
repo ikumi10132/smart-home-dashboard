@@ -70,18 +70,18 @@ aws cognito-idp admin-create-user --user-pool-id <UserPoolId> --username you@exa
 仮パスワードがメールで届くので、`SiteUrl` を開いてログインし、新しいパスワードを設定します。
 iPhone では Safari の共有メニューから「ホーム画面に追加」すると、アプリのように使えます。
 
-### 4. GitHub Actions で自動デプロイする
+### 4. 更新したコードをデプロイする (CloudShell)
 
-1. `infra/cdk.json` の `githubRepo` を自分のリポジトリ (`owner/repo`) に合わせる
-2. デプロイ用の IAM ロールを作る (初回のみ):
-   ```bash
-   cd infra && npx cdk deploy SmartHomeDashboardGithubOidc
-   ```
-   アカウントに GitHub の OIDC プロバイダーがすでにある場合は失敗するので、そのときは相談してください。
-3. 出力された `DeployRoleArn` を、GitHub のリポジトリ設定 → Secrets and variables → Actions → **Variables** に
-   `AWS_DEPLOY_ROLE_ARN` として登録 (リージョンを変える場合は `AWS_REGION` も)
+この AWS アカウント (新しい AWS エクスペリエンス) は、AWS が管理する制限 (SCP) で GitHub との OIDC 連携が禁止されているため、
+GitHub Actions からはデプロイできません。AWS コンソールの CloudShell に次を貼り付けてデプロイします。
 
-以降は `main` に push すると、型チェック・テスト・ビルドのあと自動でデプロイされます。
+```bash
+source ~/.nvm/nvm.sh && nvm use 22 >/dev/null \
+  && cd /tmp && rm -rf smart-home-dashboard && git clone --depth 1 https://github.com/ikumi10132/smart-home-dashboard.git && cd smart-home-dashboard \
+  && npm ci && npm run build && cd infra && npx cdk deploy SmartHomeDashboard --require-approval never
+```
+
+(`nvm: command not found` と出たら、先に `curl -so- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash && source ~/.nvm/nvm.sh && nvm install 22`)
 
 ## ローカル開発
 
@@ -100,16 +100,10 @@ API は AWS 上のものを使います (Cognito と CORS で localhost:5173 を
 
 Lambda 側で一覧を 1 分 (SwitchBot の機器リストは 10 分) キャッシュし、画面の自動更新も 2 分ごと・表示中のみにしています。
 
-## AWS の利用料表示
+## AWS の利用料
 
-画面下の「AWS の利用料」で、今月・先月の利用額、月末の目安、サービス別の内訳を確認できます。
-無料プランの場合は、残りのクレジットと期限も表示します。
-
-- 事前に AWS の請求コンソールで **Cost Explorer を一度開いて有効化**してください (表示できるまで約 24 時間)
-- Cost Explorer の API は **1 回 0.01 USD** かかるため、結果を SSM パラメータ (`/smart-home-dashboard/cache/costs`、無料) に
-  12 時間保存し、呼び出しを 1 日 2 回までに抑えています (最大でも 1 か月 約 0.6 USD)
-- Cost Explorer が使えない場合 (有効化待ち・プランの制限など) も、クレジット残高と期限は表示します (1 時間ごとに再取得)
-- 金額はクレジット適用前の「使った分」です。月末の目安は日割りの単純計算です (予測 API は有料なので不使用)
+AWS の利用料とクレジットの表示は、ダッシュボード [wakalabo-apps](https://github.com/ikumi10132/wakalabo-apps) (apps.wakalabo.net) に移しました。
+このアプリの AWS リソースには `app=smart-home` のタグを付けてあり、アプリ別の利用料として集計されます。
 
 ## 費用の目安
 

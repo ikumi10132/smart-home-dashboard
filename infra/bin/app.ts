@@ -9,7 +9,9 @@ const env = {
 };
 
 // 本体: ダッシュボード画面・API・ログイン
-new DashboardStack(app, 'SmartHomeDashboard', { env });
+const dashboard = new DashboardStack(app, 'SmartHomeDashboard', { env });
+// アプリごとの利用料を出すための目印。wakalabo-apps (apps.wakalabo.net) が Cost Explorer でこのタグごとに集計する
+cdk.Tags.of(dashboard).add('app', 'smart-home');
 
 // GitHub Actions から AWS にデプロイするための IAM ロール (最初に1回だけ手動デプロイ)
 new GithubOidcStack(app, 'SmartHomeDashboardGithubOidc', {

@@ -130,3 +130,20 @@ export function KindIcon({ kind, size = 20 }: { kind: Kind; size?: number }) {
       );
   }
 }
+
+// ---- メニュー用 (左メニュー・下のタブ) ----
+const navSvg = (size: number, d: ReactNode) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {d}
+  </svg>
+);
+export const NavAll = ({ size = 20 }: { size?: number }) =>
+  navSvg(size, <><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>);
+export const NavRoom = ({ size = 20 }: { size?: number }) =>
+  navSvg(size, <><path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16" /><path d="M2 21h20M15 12h.01" /></>);
+export const NavRefresh = ({ size = 20 }: { size?: number }) =>
+  navSvg(size, <><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8" /><path d="M21 3v5h-5" /></>);
+export const NavLogout = ({ size = 20 }: { size?: number }) =>
+  navSvg(size, <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5M21 12H9" /></>);
+export const NavApps = ({ size = 20 }: { size?: number }) =>
+  navSvg(size, <><path d="M15 3h6v6M10 14L21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></>);

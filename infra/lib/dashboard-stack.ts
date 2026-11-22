@@ -6,13 +6,13 @@ import { HttpJwtAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
-import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import type { Construct } from 'constructs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -47,30 +47,12 @@ export class DashboardStack extends cdk.Stack {
     });
     const siteUrl = `https://${distribution.distributionDomainName}`;
 
-    // ---------- ログイン (Cognito) ----------
-    const userPool = new cognito.UserPool(this, 'UserPool', {
-      selfSignUpEnabled: false, // ユーザーは CLI で自分だけ作成する
-      signInAliases: { email: true },
-      passwordPolicy: { minLength: 12 },
-      accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
-    });
-    const domain = userPool.addDomain('Domain', {
-      cognitoDomain: { domainPrefix: `smart-home-${this.account}` },
-    });
-    const client = userPool.addClient('WebClient', {
-      generateSecret: false,
-      oAuth: {
-        flows: { authorizationCodeGrant: true },
-        scopes: [cognito.OAuthScope.OPENID, cognito.OAuthScope.EMAIL],
-        callbackUrls: [`${siteUrl}/`, `${LOCAL_DEV_URL}/`],
-        logoutUrls: [`${siteUrl}/`, `${LOCAL_DEV_URL}/`],
-      },
-      preventUserExistenceErrors: true,
-      accessTokenValidity: cdk.Duration.hours(1),
-      idTokenValidity: cdk.Duration.hours(1),
-      refreshTokenValidity: cdk.Duration.days(30),
-    });
+    // ---------- ログイン: W-SSO (wakalabo 共通ログイン。wakalabo-apps が SSM に置いた値を読む) ----------
+    // 以前のおうちダッシュボード専用のユーザープールは、スタックから外しても AWS 上には残る (RETAIN)。
+    // 中身はログイン用のユーザーだけなので、不要になったら Cognito のコンソールから削除してよい
+    const wssoPoolId = ssm.StringParameter.valueForStringParameter(this, '/wakalabo/auth/user-pool-id');
+    const wssoClientId = ssm.StringParameter.valueForStringParameter(this, '/wakalabo/auth/wsso-client-id');
+    const ssoUrl = ssm.StringParameter.valueForStringParameter(this, '/wakalabo/auth/sso-url');
 
     // ---------- API (API Gateway + Lambda) ----------
     const fn = new nodejs.NodejsFunction(this, 'ApiFunction', {
@@ -98,8 +80,8 @@ export class DashboardStack extends cdk.Stack {
 
     const authorizer = new HttpJwtAuthorizer(
       'CognitoAuthorizer',
-      `https://cognito-idp.${this.region}.amazonaws.com/${userPool.userPoolId}`,
-      { jwtAudience: [client.userPoolClientId] },
+      `https://cognito-idp.${this.region}.amazonaws.com/${wssoPoolId}`,
+      { jwtAudience: [wssoClientId] },
     );
     const api = new apigw.HttpApi(this, 'HttpApi', {
       defaultAuthorizer: authorizer,
@@ -126,8 +108,9 @@ export class DashboardStack extends cdk.Stack {
         s3deploy.Source.asset(path.join(root, 'web/dist')),
         s3deploy.Source.jsonData('config.json', {
           apiUrl: api.apiEndpoint,
-          userPoolClientId: client.userPoolClientId,
-          cognitoDomain: domain.baseUrl(),
+          ssoUrl,
+          wssoClientId,
+          region: this.region,
         }),
       ],
       destinationBucket: siteBucket,
@@ -137,8 +120,5 @@ export class DashboardStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, 'SiteUrl', { value: siteUrl });
     new cdk.CfnOutput(this, 'ApiUrl', { value: api.apiEndpoint });
-    new cdk.CfnOutput(this, 'UserPoolId', { value: userPool.userPoolId });
-    new cdk.CfnOutput(this, 'UserPoolClientId', { value: client.userPoolClientId });
-    new cdk.CfnOutput(this, 'CognitoDomain', { value: domain.baseUrl() });
   }
 }

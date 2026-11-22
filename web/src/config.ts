@@ -1,7 +1,12 @@
+import { configure } from './wsso-client';
+
 export interface AppConfig {
   apiUrl: string;
-  userPoolClientId: string;
-  cognitoDomain: string;
+  /** W-SSO のログイン画面がある URL (例 https://apps.wakalabo.net) */
+  ssoUrl: string;
+  /** W-SSO のアプリ クライアント ID (全アプリ共通) */
+  wssoClientId: string;
+  region: string;
 }
 
 let config: AppConfig | undefined;
@@ -13,6 +18,13 @@ export async function loadConfig(): Promise<AppConfig> {
     throw new Error('config.json が見つかりません。ローカル開発時は web/public/config.json を作成してください');
   }
   config = (await res.json()) as AppConfig;
+  configure({
+    ssoUrl: config.ssoUrl,
+    userPoolClientId: config.wssoClientId,
+    region: config.region,
+    appId: 'smart-home',
+    storageKey: 'shd.session',
+  });
   return config;
 }
 

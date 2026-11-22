@@ -7,16 +7,17 @@ Apple Home (HomePod) とは別ルートで動くので、Siri やホームアプ
 ```
 [スマホ/PC] ─▶ CloudFront + S3 (React の画面)
      │
-     └─▶ API Gateway (Cognito でログイン必須) ─▶ Lambda ─┬─▶ SwitchBot API
+     └─▶ API Gateway (W-SSO でログイン必須) ─▶ Lambda ─┬─▶ SwitchBot API
                                                        └─▶ Nature Remo API
-GitHub (main に push) ─▶ GitHub Actions ─▶ AWS CDK でデプロイ
+GitHub (main に push) ─▶ GitHub Actions で型チェック・テスト
+AWS CloudShell ─▶ AWS CDK でデプロイ
 ```
 
 | ディレクトリ | 内容 |
 |---|---|
 | `api/` | Lambda (TypeScript)。SwitchBot / Nature Remo のデータを共通形式に変換 |
 | `web/` | ダッシュボード画面 (React + Vite) |
-| `infra/` | AWS CDK。S3 / CloudFront / Cognito / API Gateway / Lambda |
+| `infra/` | AWS CDK。S3 / CloudFront / API Gateway / Lambda |
 
 ## 対応している機器
 
@@ -55,19 +56,16 @@ cd ..
 npm run deploy
 ```
 
-完了すると `SiteUrl` (画面の URL) や `UserPoolId` が表示されます。
+完了すると `SiteUrl` (画面の URL) が表示されます。
 既定のリージョンは `ap-southeast-2` です。変えるときは `CDK_DEFAULT_REGION` を設定してください。
 
-### 3. ログインユーザーを作る
+### 3. ログイン (W-SSO)
 
-新規登録は無効にしてあるので、自分のユーザーを CLI で作成します。
+ログインは **W-SSO** (wakalabo 共通ログイン。ログイン画面は https://apps.wakalabo.net/sso.html) を使います。
+使う人の追加と、おうちダッシュボードを使えるかどうか (グループ `app-smart-home`。admin は全部使える) の設定は、
+ダッシュボード (apps.wakalabo.net) の「ユーザー管理」で行います。
+W-SSO の情報は wakalabo-apps が SSM パラメータ (`/wakalabo/auth/...`) に置いたものを読むので、**wakalabo-apps を先にデプロイ**しておく必要があります。
 
-```bash
-aws cognito-idp admin-create-user --user-pool-id <UserPoolId> --username you@example.com \
-  --user-attributes Name=email,Value=you@example.com Name=email_verified,Value=true
-```
-
-仮パスワードがメールで届くので、`SiteUrl` を開いてログインし、新しいパスワードを設定します。
 iPhone では Safari の共有メニューから「ホーム画面に追加」すると、アプリのように使えます。
 
 ### 4. 更新したコードをデプロイする (CloudShell)
@@ -91,7 +89,7 @@ source ~/.nvm/nvm.sh && nvm use 22 >/dev/null \
 npm run dev   # http://localhost:5173
 ```
 
-API は AWS 上のものを使います (Cognito と CORS で localhost:5173 を許可済み)。
+API は AWS 上のものを使います (CORS で localhost:5173 を許可済み)。
 
 ## API の回数制限
 
@@ -107,5 +105,5 @@ AWS の利用料とクレジットの表示は、ダッシュボード [wakalabo
 
 ## 費用の目安
 
-個人利用ならほぼ無料枠内です (CloudFront / Lambda / API Gateway / Cognito / SSM)。
+個人利用ならほぼ無料枠内です (CloudFront / Lambda / API Gateway / SSM)。
 CloudWatch Logs は 1 か月で自動削除されます。

@@ -31,7 +31,7 @@ export function App() {
     (async () => {
       try {
         await loadConfig();
-        await handleRedirect();
+        handleRedirect();
         setPhase(isLoggedIn() ? { name: 'ready' } : { name: 'login' });
       } catch (e) {
         setPhase({ name: 'error', message: e instanceof Error ? e.message : String(e) });
@@ -53,7 +53,7 @@ export function App() {
       <div className="center login">
         <img src="/icon.svg" alt="" width={64} height={64} />
         <h1>おうちダッシュボード</h1>
-        <button className="btn btn-primary btn-wide" onClick={() => void login()}>ログイン</button>
+        <button className="btn btn-primary btn-wide" onClick={() => login()}>W-SSO でログイン</button>
       </div>
     );
   }

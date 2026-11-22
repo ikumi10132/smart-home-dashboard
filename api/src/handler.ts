@@ -111,9 +111,27 @@ async function sendCommand(rawId: string, body: string | undefined): Promise<voi
   throw new Error(`不明なデバイスです: ${id}`);
 }
 
+/** JWT の cognito:groups は ["a","b"] / "[a b]" / "[a, b]" などの形で届く */
+export function groupsFromClaim(claim: unknown): string[] {
+  if (Array.isArray(claim)) return claim.map(String);
+  if (typeof claim !== 'string') return [];
+  return claim
+    .replace(/^\[|\]$/g, '')
+    .split(/[\s,]+/)
+    .map((s) => s.replace(/^"|"$/g, ''))
+    .filter(Boolean);
+}
+
+const APP_GROUP = 'app-smart-home';
+
 export async function handler(
   event: APIGatewayProxyEventV2WithJWTAuthorizer,
 ): Promise<APIGatewayProxyStructuredResultV2> {
+  // W-SSO のアカウントのうち、使えるのは admin か app-smart-home グループの人だけ
+  const groups = groupsFromClaim(event.requestContext.authorizer?.jwt?.claims?.['cognito:groups']);
+  if (!groups.includes('admin') && !groups.includes(APP_GROUP)) {
+    return json(403, { message: 'おうちダッシュボードを使う権限がありません。ダッシュボード (apps.wakalabo.net) の管理者に追加してもらってください' });
+  }
   try {
     switch (event.routeKey) {
       case 'GET /devices':

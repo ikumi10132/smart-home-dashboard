@@ -1,6 +1,7 @@
 {
   "app": "npx tsx bin/app.ts",
   "context": {
-    "githubRepo": "ikumi10132/smart-home-dashboard"
+    "githubRepo": "ikumi10132/smart-home-dashboard",
+    "mytask": true
   }
 }

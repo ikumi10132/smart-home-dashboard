@@ -7,6 +7,9 @@ export interface AppConfig {
   /** W-SSO のアプリ クライアント ID (全アプリ共通) */
   wssoClientId: string;
   region: string;
+  /** MyTask! (タスク管理) の API と画面の URL。MyTask! と連携しないときは空 */
+  mytaskApiUrl?: string;
+  mytaskSiteUrl?: string;
 }
 
 let config: AppConfig | undefined;

@@ -81,6 +81,20 @@ source ~/.nvm/nvm.sh && nvm use 22 >/dev/null \
 
 (`nvm: command not found` と出たら、先に `curl -so- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash && source ~/.nvm/nvm.sh && nvm install 22`)
 
+## MyTask! (タスク管理) との連携
+
+[MyTask!](https://github.com/ikumi10132/mytask) を使っている人がログインすると、ダッシュボードに次のものが出ます。
+
+- **今日のタスク**: 期限・「知らせる日」・目安を過ぎた家事 (MyTask! の「前回から何日」)
+- **電池交換のタスク**: 電池残量が 20% 以下の機器があると、MyTask! に「〇〇の電池交換」を自動で作ります (同じ機器のタスクが終わるまでは二重に作りません)
+
+画面 (ブラウザ) から、同じ W-SSO のログインのまま MyTask! の API を直接呼ぶので、このダッシュボードの AWS 側には何も増えません。
+電池の確認はダッシュボードを開いているときだけ動きます (少ない機器の組み合わせが変わったときだけ送ります)。
+
+- MyTask! の API の URL は、MyTask! が SSM (`/wakalabo/mytask/api-url`・`site-url`) に置いたものをデプロイのときに読みます。**MyTask! を先にデプロイ**してください
+- MyTask! を使えない人 (グループ `app-mytask` に入っていない) には、今日のタスクは出ません
+- 連携しないときは `infra/cdk.json` の context を `"mytask": false` にしてデプロイします
+
 ## ローカル開発
 
 デプロイ後の出力値を使って `web/public/config.json` を作ります (`config.example.json` を参照)。

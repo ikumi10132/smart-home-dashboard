@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Command, Device, DevicesResponse } from '../../api/src/types';
 import { AuthError, fetchDevices, sendCommand } from './api';
 import { handleRedirect, isLoggedIn, login, logout } from './auth';
 import { Clock } from './components/Clock';
 import { NavAll, NavApps, NavLogout, NavRefresh, NavRoom } from './components/Icons';
 import { RoomPanel } from './components/RoomPanel';
+import { TaskPanel } from './components/TaskPanel';
 import { WeatherPanel } from './components/WeatherPanel';
-import { loadConfig } from './config';
+import { getConfig, loadConfig } from './config';
+import { fetchToday, lowBatteryDevices, reportBatteries, type MyTaskToday } from './mytask';
 import { ROOMS } from './rooms';
 
 const POLL_MS = 2 * 60_000; // API の回数制限があるので控えめに
@@ -87,6 +89,9 @@ function Dashboard({ onAuthError }: { onAuthError: () => void }) {
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
   const [roomFilter, setRoomFilter] = useState(loadRoomFilter);
+  const [today, setToday] = useState<MyTaskToday | null>(null);
+  /** 最後に MyTask! に送った「電池の少ない機器」の組み合わせ (変わったときだけ送る) */
+  const reportedBatteries = useRef('');
 
   const chooseRoom = (id: string) => {
     setRoomFilter(id);
@@ -113,13 +118,32 @@ function Dashboard({ onAuthError }: { onAuthError: () => void }) {
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      setData(await fetchDevices());
+      const d = await fetchDevices();
+      setData(d);
+      await syncMyTask(d.devices);
     } catch (e) {
       handleError(e);
     } finally {
       setRefreshing(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handleError]);
+
+  /** MyTask! と連携: 電池の少ない機器を送り (組み合わせが変わったときだけ)、今日のタスクを読む。失敗しても機器の表示は止めない */
+  const syncMyTask = async (devices: Device[]) => {
+    try {
+      const low = lowBatteryDevices(devices);
+      const key = low.map((d) => d.id).sort().join(',');
+      if (key && key !== reportedBatteries.current) {
+        const created = await reportBatteries(low);
+        if (created.length) showToast(`MyTask! に「${created.join('」「')}」を追加しました`);
+      }
+      reportedBatteries.current = key;
+      setToday(await fetchToday());
+    } catch (e) {
+      console.warn('MyTask!', e);
+    }
+  };
 
   useEffect(() => {
     void refresh();
@@ -208,6 +232,8 @@ function Dashboard({ onAuthError }: { onAuthError: () => void }) {
         </header>
 
         <WeatherPanel />
+
+        {today && <TaskPanel today={today} siteUrl={getConfig().mytaskSiteUrl ?? ''} />}
 
         {data?.errors.map((e) => (
           <p key={e.provider} className="banner">

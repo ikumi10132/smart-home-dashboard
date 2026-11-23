@@ -102,6 +102,18 @@ export class DashboardStack extends cdk.Stack {
     const stage = api.defaultStage?.node.defaultChild as apigw.CfnStage;
     stage.defaultRouteSettings = { throttlingBurstLimit: 20, throttlingRateLimit: 10 };
 
+    // ---------- MyTask! (タスク管理) との連携 ----------
+    // 画面からブラウザで MyTask! の API を直接呼ぶ (今日のタスクの表示・電池交換のタスクの作成)。
+    // ここでは MyTask! が SSM に置いた URL を読むだけで、AWS のリソースは増やさない。
+    // MyTask! を先にデプロイしておく必要がある。連携しないときは cdk.json の context で "mytask": false
+    const mytaskEnabled = this.node.tryGetContext('mytask') !== false && this.node.tryGetContext('mytask') !== 'false';
+    const mytask = mytaskEnabled
+      ? {
+          mytaskApiUrl: ssm.StringParameter.valueForStringParameter(this, '/wakalabo/mytask/api-url'),
+          mytaskSiteUrl: ssm.StringParameter.valueForStringParameter(this, '/wakalabo/mytask/site-url'),
+        }
+      : {};
+
     // ---------- 画面のデプロイ ----------
     new s3deploy.BucketDeployment(this, 'DeployWeb', {
       sources: [
@@ -111,6 +123,7 @@ export class DashboardStack extends cdk.Stack {
           ssoUrl,
           wssoClientId,
           region: this.region,
+          ...mytask,
         }),
       ],
       destinationBucket: siteBucket,

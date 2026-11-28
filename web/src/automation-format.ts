@@ -1,3 +1,4 @@
+import { sortByRemote } from './button-layout';
 import type { AirconMode, Automation, Command, Condition, Device, StateCondition, Trigger, Weekday } from '../../api/src/types';
 
 export const WEEKDAYS: { day: Weekday; label: string }[] = [
@@ -58,7 +59,7 @@ export interface CommandOption {
 
 /** エアコン以外の機器で選べる操作 (ダッシュボードのボタンと同じもの) */
 export function commandOptions(device: Device): CommandOption[] {
-  const buttons = (device.buttons ?? []).map((b) => ({ label: b.label, command: { action: 'button', button: b.name } as Command }));
+  const buttons = sortByRemote(device.buttons ?? [], (b) => b.label).map((b) => ({ label: b.label, command: { action: 'button', button: b.name } as Command }));
   switch (device.kind) {
     case 'light':
     case 'switch':

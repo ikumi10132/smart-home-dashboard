@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { AirconMode, Command, Device } from '../../../api/src/types';
+import { placeButtons } from '../button-layout';
 import { KindIcon } from './Icons';
 
 interface Props {
@@ -105,10 +106,11 @@ function PowerButtons({ run, busy, power }: { run: (c: Command) => void; busy: b
 
 function ButtonGrid({ device, run, busy }: { device: Device; run: (c: Command) => void; busy: boolean }) {
   if (!device.buttons?.length) return null;
+  const positions = placeButtons(device.buttons.map((b) => b.label));
   return (
     <div className="btn-grid">
-      {device.buttons.map((b) => (
-        <button key={b.name} className="btn btn-small" disabled={busy} onClick={() => run({ action: 'button', button: b.name })}>
+      {device.buttons.map((b, i) => (
+        <button key={b.name} className="btn btn-small" style={positions[i]} disabled={busy} onClick={() => run({ action: 'button', button: b.name })}>
           {b.label}
         </button>
       ))}

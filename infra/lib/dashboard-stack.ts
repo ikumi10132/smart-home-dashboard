@@ -17,6 +17,7 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import type { Construct } from 'constructs';
+import { securityHeadersPolicy } from './csp.js';
 
 // API Gateway のアクセスログの形 (1 リクエスト 1 行の JSON)。wakalabo-apps の ACCESS_LOG_FORMAT と同じにする。
 // URL のパスやクエリ (トークンや ID が入る) と本文は残さず、ルートの名前 (routeKey) だけを残す
@@ -52,11 +53,15 @@ export class DashboardStack extends cdk.Stack {
       autoDeleteObjects: true,
     });
 
+    // 応答ヘッダー: CSP (動かしてよいスクリプト・通信してよい相手) と安全のためのヘッダー (infra/lib/csp.ts)。天気 (Open-Meteo)にも通信する
+
+    const securityHeaders = securityHeadersPolicy(this, 'SecurityHeaders', { distDir: path.join(root, 'web/dist'), region: this.region, connect: ['https://api.open-meteo.com', 'https://geocoding-api.open-meteo.com'] });
+
     const distribution = new cloudfront.Distribution(this, 'Distribution', {
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(siteBucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-        responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS,
+        responseHeadersPolicy: securityHeaders,
       },
       defaultRootObject: 'index.html',
       errorResponses: [403, 404].map((httpStatus) => ({

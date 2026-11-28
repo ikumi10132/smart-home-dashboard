@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Command, Device, DevicesResponse } from '../../api/src/types';
 import { AuthError, fetchDevices, sendCommand } from './api';
-import { handleRedirect, isLoggedIn, login, logout } from './auth';
+import { handleRedirect, isLoggedIn, login, logout, getAccessToken } from './auth';
 import { Clock } from './components/Clock';
 import { NavAll, NavApps, NavLogout, NavRefresh, NavRoom, NavAutomation } from './components/Icons';
 import { RoomPanel } from './components/RoomPanel';
@@ -11,6 +11,7 @@ import { WeatherPanel } from './components/WeatherPanel';
 import { getConfig, loadConfig } from './config';
 import { fetchToday, lowBatteryDevices, reportBatteries, type MyTaskToday } from './mytask';
 import { ROOMS } from './rooms';
+import { initLog, logView } from './wakalabo-log';
 
 const POLL_MS = 2 * 60_000; // API の回数制限があるので控えめに
 const ROOM_KEY = 'shd.room';
@@ -92,6 +93,9 @@ function Dashboard({ onAuthError }: { onAuthError: () => void }) {
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
   const [roomFilter, setRoomFilter] = useState(loadRoomFilter);
+  // 共通のログ (どの画面を開いたか・画面のエラー)。apps.wakalabo.net の「ログ」で見られる
+  useEffect(() => initLog({ url: getConfig().logUrl, app: 'smart-home', getToken: getAccessToken }), []);
+  useEffect(() => logView(roomFilter === ALL_ROOMS ? 'すべて' : roomFilter === AUTOMATIONS ? 'オートメーション' : (ROOMS.find((r) => r.id === roomFilter)?.name ?? roomFilter)), [roomFilter]);
   const [today, setToday] = useState<MyTaskToday | null>(null);
   /** 最後に MyTask! に送った「電池の少ない機器」の組み合わせ (変わったときだけ送る) */
   const reportedBatteries = useRef('');

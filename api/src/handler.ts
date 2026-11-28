@@ -122,6 +122,9 @@ export async function handler(
     }
   } catch (e) {
     console.error(e);
-    return json(400, { message: errorMessage(e) });
+    // アプリが自分で投げた Error (入力の誤り・SwitchBot / Nature Remo からの答え) は 400 で説明を返す。
+    // AWS の SDK のエラー (アカウント ID や ARN が入ることがある) やプログラムの誤りは、中身を返さない
+    if (e instanceof Error && e.constructor === Error) return json(400, { message: e.message });
+    return json(500, { message: 'サーバーでエラーが発生しました。時間をおいてもう一度お試しください' });
   }
 }

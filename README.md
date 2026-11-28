@@ -127,7 +127,7 @@ source ~/.nvm/nvm.sh && nvm use 22 >/dev/null \
 npm run dev   # http://localhost:5173
 ```
 
-API は AWS 上のものを使います (CORS で localhost:5173 を許可済み)。
+API は AWS 上のものを使います。localhost:5173 からの呼び出しは本番では許可していないので、開発するときだけ `npx cdk deploy SmartHomeDashboard -c localDev=true` でデプロイしてください (終わったら付けずにデプロイし直す)。
 
 ## API の回数制限
 

@@ -40,6 +40,12 @@ const ACCESS_LOG_FORMAT = JSON.stringify({
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 export const PARAM_PREFIX = '/smart-home-dashboard';
 const LOCAL_DEV_URL = 'http://localhost:5173';
+/**
+ * ローカル開発 (npm run dev) の画面からの呼び出し。本番では許可せず、
+ * `npx cdk deploy -c localDev=true` でデプロイしたときだけ許可する
+ */
+const devOrigins = (scope: Construct): string[] =>
+  [true, 'true'].includes(scope.node.tryGetContext('localDev')) ? [LOCAL_DEV_URL] : [];
 
 export class DashboardStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -148,7 +154,7 @@ export class DashboardStack extends cdk.Stack {
     const api = new apigw.HttpApi(this, 'HttpApi', {
       defaultAuthorizer: authorizer,
       corsPreflight: {
-        allowOrigins: [siteUrl, LOCAL_DEV_URL],
+        allowOrigins: [siteUrl, ...devOrigins(this)],
         allowMethods: [apigw.CorsHttpMethod.GET, apigw.CorsHttpMethod.POST, apigw.CorsHttpMethod.PUT, apigw.CorsHttpMethod.DELETE],
         allowHeaders: ['authorization', 'content-type'],
         maxAge: cdk.Duration.hours(1),

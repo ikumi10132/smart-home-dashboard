@@ -8,7 +8,9 @@ Apple Home (HomePod) とは別ルートで動くので、Siri やホームアプ
 [スマホ/PC] ─▶ CloudFront + S3 (React の画面)
      │
      └─▶ API Gateway (W-SSO でログイン必須) ─▶ Lambda ─┬─▶ SwitchBot API
-                                                       └─▶ Nature Remo API
+                                                       ├─▶ Nature Remo API
+                                                       └─▶ DynamoDB (スケジュール)
+EventBridge (1 分ごと) ─▶ スケジューラー Lambda ─▶ 時刻が来たスケジュールの操作を送る
 GitHub (main に push) ─▶ GitHub Actions で型チェック・テスト
 AWS CloudShell ─▶ AWS CDK でデプロイ
 ```
@@ -17,13 +19,25 @@ AWS CloudShell ─▶ AWS CDK でデプロイ
 |---|---|
 | `api/` | Lambda (TypeScript)。SwitchBot / Nature Remo のデータを共通形式に変換 |
 | `web/` | ダッシュボード画面 (React + Vite) |
-| `infra/` | AWS CDK。S3 / CloudFront / API Gateway / Lambda |
+| `infra/` | AWS CDK。S3 / CloudFront / API Gateway / Lambda / DynamoDB / EventBridge |
 
 ## 対応している機器
 
 - **SwitchBot**: プラグ、照明、カーテン、ボット、温湿度計 / ハブ2、赤外線リモコン (エアコン・テレビ・照明・その他)
 - **Nature Remo**: エアコン、照明、テレビ、登録したリモコンボタン、温湿度 (センサー搭載機種のみ)
 - **IKEA (DIRIGERA)**: クラウド API がないため対象外
+
+## スケジュール
+
+画面の「スケジュール」で、曜日と時刻 (日本時間) を決めて家電をまとめて操作できます。
+
+- 1 つのスケジュールに操作を 10 個まで入れられます (例: 平日 6:45 に「エアコンを暖房 22℃で運転」→「カーテンを開ける」)。上から順に送ります
+- 「今すぐ実行」で試しに動かせます。有効 / 無効はスイッチで切り替えます
+- スケジューラーは 1 分ごとに動き、起動が遅れても 5 分以内なら取り戻して実行します。同じ回を二度実行することはありません
+- 時刻を過ぎてから保存したスケジュールは、その日の回は実行しません (保存した直後に急に動かないように)
+- 結果は「前回 … 成功 / 失敗」として表示されます。詳しいログは CloudWatch Logs の SchedulerFunction のロググループにあります
+- 費用: Lambda は月 約 4.3 万回の起動 (無料枠 100 万回)。DynamoDB は読み書き 1 ユニットずつ (無料枠 25 ユニット) なので、無料枠に収まります
+- スケジュールのテーブルは、スタックを削除しても残ります (RETAIN)。不要になったら DynamoDB のコンソールから削除してください
 
 ## セットアップ
 

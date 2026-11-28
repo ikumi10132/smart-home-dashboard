@@ -68,3 +68,43 @@ export interface DevicesResponse {
   errors: ProviderError[];
   fetchedAt: string;
 }
+
+// ---------- スケジュール ----------
+
+/** 曜日 (0 = 日曜 … 6 = 土曜) */
+export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+export interface ScheduleAction {
+  deviceId: string;
+  /** 登録したときの機器名 (機器が消えても一覧で分かるように残す) */
+  deviceName: string;
+  command: Command;
+}
+
+/** 画面から送る内容 */
+export interface ScheduleInput {
+  name: string;
+  enabled: boolean;
+  days: Weekday[];
+  /** 日本時間の "HH:MM" */
+  time: string;
+  actions: ScheduleAction[];
+}
+
+export interface ActionResult {
+  deviceName: string;
+  ok: boolean;
+  message?: string;
+}
+
+export interface ScheduleRunResult {
+  at: string;
+  ok: boolean;
+  results: ActionResult[];
+}
+
+export interface Schedule extends ScheduleInput {
+  id: string;
+  updatedAt: string;
+  lastRun?: ScheduleRunResult;
+}

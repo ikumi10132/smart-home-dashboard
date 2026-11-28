@@ -417,3 +417,126 @@ ol, ul { list-style: none; }
 .task-tag { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); flex: none; }
 .task-tag-due { background: var(--danger-soft); color: var(--danger); }
 .task-tag-over { background: var(--accent-soft); color: var(--accent); }
+
+/* ---- スケジュール ---- */
+.schedules { display: flex; flex-direction: column; gap: 16px; max-width: 760px; width: 100%; }
+.schedule-list { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); }
+.schedule {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.schedule.is-off { opacity: 0.6; }
+.schedule.is-busy { opacity: 0.6; }
+.schedule-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.schedule-when { display: flex; align-items: baseline; gap: 10px; }
+.schedule-time { font-size: 32px; font-weight: 300; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.schedule-days { color: var(--accent); font-size: 13px; font-weight: 600; }
+.schedule-name { font-size: 15px; font-weight: 600; }
+.schedule-actions { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.schedule-actions li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }
+.schedule-buttons { margin-top: 4px; }
+.btn-danger { color: var(--danger); }
+
+.switch {
+  appearance: none;
+  flex: none;
+  width: 48px;
+  height: 28px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--surface-2);
+  padding: 3px;
+  cursor: pointer;
+  display: flex;
+  transition: background 0.15s;
+}
+.switch span { width: 22px; height: 22px; border-radius: 50%; background: var(--muted); transition: transform 0.15s, background 0.15s; }
+.switch.on { background: var(--accent); }
+.switch.on span { transform: translateX(20px); background: var(--accent-text); }
+.switch:disabled { cursor: default; }
+.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.editor fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field > span, .field > legend { font-size: 13px; color: var(--muted); font-weight: 600; padding: 0; margin-bottom: 6px; }
+.field-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.field-row > * { flex: 1 1 140px; }
+.field-inline { flex-direction: row; align-items: center; gap: 8px; min-height: 44px; }
+.field-inline > span { margin: 0; color: var(--text); }
+.field-inline input { width: 20px; height: 20px; accent-color: var(--accent); }
+.input {
+  font: inherit;
+  font-size: 16px; /* iPhone で拡大されないように 16px 以上 */
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-height: 44px;
+  width: 100%;
+  min-width: 0;
+}
+.input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.input-time { font-variant-numeric: tabular-nums; }
+
+.day-picker { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.day {
+  font: inherit;
+  font-weight: 600;
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+.day.sun { color: var(--danger); }
+.day.sat { color: #8ab4ff; }
+.day.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.day-presets { display: flex; gap: 16px; margin-top: 4px; }
+
+.action-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
+.action-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.action-top { display: flex; align-items: center; gap: 8px; }
+.action-top select { flex: 1; }
+.action-no {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  font-size: 12px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+.action-tools { display: flex; flex: none; }
+.action-tools .btn { min-width: 36px; padding-inline: 8px; }
+.aircon-picker { display: flex; flex-direction: column; gap: 10px; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  font: inherit;
+  font-size: 13px;
+  min-height: 36px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+.chip.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }

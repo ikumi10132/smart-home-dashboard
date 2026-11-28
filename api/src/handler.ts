@@ -1,58 +1,18 @@
-import { GetParametersCommand, SSMClient } from '@aws-sdk/client-ssm';
+import { randomUUID } from 'node:crypto';
 import type {
   APIGatewayProxyEventV2WithJWTAuthorizer,
   APIGatewayProxyStructuredResultV2,
 } from 'aws-lambda';
-import { RemoClient } from './remo.js';
-import { SwitchBotClient } from './switchbot.js';
-import type { Command, Device, DevicesResponse, ProviderError } from './types.js';
-
-const PREFIX = process.env.PARAM_PREFIX ?? '/smart-home-dashboard';
-const ssm = new SSMClient({});
-
-interface Clients {
-  switchbot?: SwitchBotClient;
-  remo?: RemoClient;
-}
-
-let clientsPromise: Promise<Clients> | undefined;
-
-// SSM Parameter Store (SecureString) から API トークンを読み込む。
-// 登録されていないサービスは無効として扱うので、片方だけでも動く。
-async function loadClients(): Promise<Clients> {
-  const names = {
-    sbToken: `${PREFIX}/switchbot/token`,
-    sbSecret: `${PREFIX}/switchbot/secret`,
-    remoToken: `${PREFIX}/remo/token`,
-  };
-  const res = await ssm.send(
-    new GetParametersCommand({ Names: Object.values(names), WithDecryption: true }),
-  );
-  const value = (name: string) => res.Parameters?.find((p) => p.Name === name)?.Value;
-  const sbToken = value(names.sbToken);
-  const sbSecret = value(names.sbSecret);
-  const remoToken = value(names.remoToken);
-  return {
-    switchbot: sbToken && sbSecret ? new SwitchBotClient(sbToken, sbSecret) : undefined,
-    remo: remoToken ? new RemoClient(remoToken) : undefined,
-  };
-}
-
-function clients(): Promise<Clients> {
-  clientsPromise ??= loadClients().catch((e) => {
-    clientsPromise = undefined;
-    throw e;
-  });
-  return clientsPromise;
-}
+import { clients, errorMessage, runActions, runCommand, validateCommand } from './clients.js';
+import { MAX_SCHEDULES, validateSchedule } from './schedule.js';
+import { createSchedule, deleteSchedule, listSchedules, updateSchedule } from './schedule-store.js';
+import type { Device, DevicesResponse, ProviderError, Schedule, ScheduleRunResult } from './types.js';
 
 const json = (statusCode: number, body: unknown): APIGatewayProxyStructuredResultV2 => ({
   statusCode,
   headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   body: JSON.stringify(body),
 });
-
-const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 async function listDevices(): Promise<DevicesResponse> {
   const c = await clients();
@@ -83,32 +43,38 @@ async function listDevices(): Promise<DevicesResponse> {
   return { devices, errors, fetchedAt: new Date().toISOString() };
 }
 
-const ACTIONS = new Set(['on', 'off', 'open', 'close', 'press', 'aircon', 'button']);
-
-function parseCommand(body: string | undefined): Command {
-  const cmd = JSON.parse(body ?? '{}') as Record<string, unknown>;
-  if (typeof cmd.action !== 'string' || !ACTIONS.has(cmd.action)) {
-    throw new Error('action が不正です');
-  }
-  if (cmd.action === 'aircon' && cmd.power !== 'on' && cmd.power !== 'off') {
-    throw new Error('power が不正です');
-  }
-  if (cmd.action === 'button' && typeof cmd.button !== 'string') {
-    throw new Error('button が不正です');
-  }
-  return cmd as unknown as Command;
+async function sendCommand(rawId: string, body: string | undefined): Promise<void> {
+  await runCommand(decodeURIComponent(rawId), validateCommand(JSON.parse(body ?? '{}')));
 }
 
-async function sendCommand(rawId: string, body: string | undefined): Promise<void> {
-  const id = decodeURIComponent(rawId);
-  const sep = id.indexOf(':');
-  const provider = id.slice(0, sep);
-  const deviceId = id.slice(sep + 1);
-  const command = parseCommand(body);
-  const c = await clients();
-  if (provider === 'switchbot' && c.switchbot) return c.switchbot.send(deviceId, command);
-  if (provider === 'remo' && c.remo) return c.remo.send(deviceId, command);
-  throw new Error(`不明なデバイスです: ${id}`);
+// ---------- スケジュール ----------
+
+/** 画面に返す形 (内部用の lastRunKey は返さない) */
+async function getSchedules(): Promise<Schedule[]> {
+  return (await listSchedules()).map(({ lastRunKey: _, ...s }) => s);
+}
+
+async function addSchedule(body: string | undefined): Promise<{ id: string }> {
+  const input = validateSchedule(JSON.parse(body ?? '{}'));
+  if ((await listSchedules()).length >= MAX_SCHEDULES) {
+    throw new Error(`スケジュールは ${MAX_SCHEDULES} 件までです`);
+  }
+  const id = randomUUID();
+  await createSchedule(id, input);
+  return { id };
+}
+
+async function editSchedule(id: string, body: string | undefined): Promise<void> {
+  const input = validateSchedule(JSON.parse(body ?? '{}'));
+  if (!(await updateSchedule(id, input))) throw new Error('スケジュールが見つかりません');
+}
+
+/** 「今すぐ実行」。試しに動かすためのもので、実行の記録 (lastRun) は変えない */
+async function runScheduleNow(id: string): Promise<ScheduleRunResult> {
+  const s = (await listSchedules()).find((x) => x.id === id);
+  if (!s) throw new Error('スケジュールが見つかりません');
+  const results = await runActions(s.actions);
+  return { at: new Date().toISOString(), ok: results.every((r) => r.ok), results };
 }
 
 /** JWT の cognito:groups は ["a","b"] / "[a b]" / "[a, b]" などの形で届く */
@@ -139,6 +105,18 @@ export async function handler(
       case 'POST /devices/{id}/command':
         await sendCommand(event.pathParameters?.id ?? '', event.body);
         return json(200, { ok: true });
+      case 'GET /schedules':
+        return json(200, { schedules: await getSchedules() });
+      case 'POST /schedules':
+        return json(200, await addSchedule(event.body));
+      case 'PUT /schedules/{id}':
+        await editSchedule(event.pathParameters?.id ?? '', event.body);
+        return json(200, { ok: true });
+      case 'DELETE /schedules/{id}':
+        await deleteSchedule(event.pathParameters?.id ?? '');
+        return json(200, { ok: true });
+      case 'POST /schedules/{id}/run':
+        return json(200, await runScheduleNow(event.pathParameters?.id ?? ''));
       default:
         return json(404, { message: 'Not Found' });
     }

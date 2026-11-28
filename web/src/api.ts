@@ -1,4 +1,4 @@
-import type { Command, DevicesResponse } from '../../api/src/types';
+import type { Command, DevicesResponse, Schedule, ScheduleInput, ScheduleRunResult } from '../../api/src/types';
 import { getAccessToken } from './auth';
 import { getConfig } from './config';
 
@@ -25,3 +25,19 @@ export const sendCommand = (deviceId: string, command: Command) =>
     body: JSON.stringify(command),
   });
 
+
+// ---------- スケジュール ----------
+
+export const fetchSchedules = () => call<{ schedules: Schedule[] }>('/schedules').then((r) => r.schedules);
+
+export const createSchedule = (input: ScheduleInput) =>
+  call<{ id: string }>('/schedules', { method: 'POST', body: JSON.stringify(input) });
+
+export const updateSchedule = (id: string, input: ScheduleInput) =>
+  call<{ ok: true }>(`/schedules/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) });
+
+export const deleteSchedule = (id: string) =>
+  call<{ ok: true }>(`/schedules/${encodeURIComponent(id)}`, { method: 'DELETE' });
+
+export const runSchedule = (id: string) =>
+  call<ScheduleRunResult>(`/schedules/${encodeURIComponent(id)}/run`, { method: 'POST' });

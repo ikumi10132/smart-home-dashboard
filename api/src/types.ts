@@ -69,7 +69,7 @@ export interface DevicesResponse {
   fetchedAt: string;
 }
 
-// ---------- スケジュール ----------
+// ---------- オートメーション ----------
 
 /** 曜日 (0 = 日曜 … 6 = 土曜) */
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -81,14 +81,41 @@ export interface ScheduleAction {
   command: Command;
 }
 
+/** 機器の状態についての条件 (きっかけにも、条件にも使える) */
+export type StateCondition =
+  | {
+      type: 'sensor';
+      deviceId: string;
+      deviceName: string;
+      metric: 'temperature' | 'humidity';
+      /** above = 以上, below = 以下 */
+      op: 'above' | 'below';
+      value: number;
+    }
+  | { type: 'power'; deviceId: string; deviceName: string; power: 'on' | 'off' };
+
+export type Condition =
+  | StateCondition
+  /** 日本時間の時間帯。from > to なら日付をまたぐ (例 22:00〜06:00) */
+  | { type: 'timeRange'; from: string; to: string }
+  | { type: 'days'; days: Weekday[] };
+
+export type Trigger =
+  /** 曜日と時刻 (日本時間 "HH:MM"、5 分単位) */
+  | { type: 'time'; days: Weekday[]; time: string }
+  /** 状態がこうなったとき (満たしていない → 満たした、に変わったとき) */
+  | { type: 'state'; condition: StateCondition };
+
 /** 画面から送る内容 */
-export interface ScheduleInput {
+export interface AutomationInput {
   name: string;
   enabled: boolean;
-  days: Weekday[];
-  /** 日本時間の "HH:MM" */
-  time: string;
+  trigger: Trigger;
+  /** すべて満たすときだけ実行する */
+  conditions: Condition[];
   actions: ScheduleAction[];
+  /** 状態がきっかけのとき、一度動いたら次に動くまで空ける分数 */
+  cooldownMinutes: number;
 }
 
 export interface ActionResult {
@@ -103,7 +130,7 @@ export interface ScheduleRunResult {
   results: ActionResult[];
 }
 
-export interface Schedule extends ScheduleInput {
+export interface Automation extends AutomationInput {
   id: string;
   updatedAt: string;
   lastRun?: ScheduleRunResult;

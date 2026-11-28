@@ -1,7 +1,7 @@
 import { GetParametersCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { RemoClient } from './remo.js';
 import { SwitchBotClient } from './switchbot.js';
-import type { ActionResult, Command, ScheduleAction } from './types.js';
+import type { ActionResult, Command, DeviceState, ScheduleAction } from './types.js';
 
 const PREFIX = process.env.PARAM_PREFIX ?? '/smart-home-dashboard';
 const ssm = new SSMClient({});
@@ -79,6 +79,37 @@ export async function runCommand(id: string, command: Command): Promise<void> {
   if (provider === 'switchbot' && c.switchbot) return c.switchbot.send(deviceId, command);
   if (provider === 'remo' && c.remo) return c.remo.send(deviceId, command);
   throw new Error(`不明なデバイスです: ${id}`);
+}
+
+/**
+ * 指定した機器の状態だけを読む (オートメーションの判定用)。
+ * SwitchBot は 1 台ずつ、Nature Remo は一覧 (2 回) で読む。読めなかった機器は結果に入らない
+ */
+export async function deviceStates(ids: string[]): Promise<Map<string, DeviceState>> {
+  const c = await clients();
+  const states = new Map<string, DeviceState>();
+  const unique = [...new Set(ids)];
+  const tasks: Promise<void>[] = [];
+  for (const id of unique.filter((x) => x.startsWith('switchbot:'))) {
+    if (!c.switchbot) break;
+    const sb = c.switchbot;
+    tasks.push(
+      sb.state(id.slice('switchbot:'.length)).then(
+        (s) => void states.set(id, s),
+        (e) => console.warn('SwitchBot state error', id, errorMessage(e)),
+      ),
+    );
+  }
+  if (c.remo && unique.some((x) => x.startsWith('remo:'))) {
+    tasks.push(
+      c.remo.listDevices().then(
+        (list) => list.forEach((d) => unique.includes(d.id) && states.set(d.id, d.state)),
+        (e) => console.warn('Nature Remo state error', errorMessage(e)),
+      ),
+    );
+  }
+  await Promise.all(tasks);
+  return states;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

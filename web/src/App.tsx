@@ -3,9 +3,9 @@ import type { Command, Device, DevicesResponse } from '../../api/src/types';
 import { AuthError, fetchDevices, sendCommand } from './api';
 import { handleRedirect, isLoggedIn, login, logout } from './auth';
 import { Clock } from './components/Clock';
-import { NavAll, NavApps, NavLogout, NavRefresh, NavRoom, NavSchedule } from './components/Icons';
+import { NavAll, NavApps, NavLogout, NavRefresh, NavRoom, NavAutomation } from './components/Icons';
 import { RoomPanel } from './components/RoomPanel';
-import { SchedulePanel } from './components/SchedulePanel';
+import { AutomationPanel } from './components/AutomationPanel';
 import { TaskPanel } from './components/TaskPanel';
 import { WeatherPanel } from './components/WeatherPanel';
 import { getConfig, loadConfig } from './config';
@@ -15,13 +15,13 @@ import { ROOMS } from './rooms';
 const POLL_MS = 2 * 60_000; // API の回数制限があるので控えめに
 const ROOM_KEY = 'shd.room';
 const ALL_ROOMS = 'all';
-/** 部屋の代わりに選べる「スケジュール」の画面 */
-const SCHEDULES = 'schedules';
+/** 部屋の代わりに選べる「オートメーション」の画面 */
+const AUTOMATIONS = 'automations';
 
 function loadRoomFilter(): string {
   try {
     const saved = localStorage.getItem(ROOM_KEY);
-    return saved === SCHEDULES || ROOMS.some((r) => r.id === saved) ? saved! : ALL_ROOMS;
+    return saved === AUTOMATIONS || ROOMS.some((r) => r.id === saved) ? saved! : ALL_ROOMS;
   } catch {
     return ALL_ROOMS;
   }
@@ -172,10 +172,10 @@ function Dashboard({ onAuthError }: { onAuthError: () => void }) {
   const updated = data ? new Date(data.fetchedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : null;
   const visibleRooms = ROOMS.filter((r) => roomFilter === ALL_ROOMS || r.id === roomFilter);
 
-  const roomNav = [{ id: ALL_ROOMS, name: 'すべて' }, ...ROOMS, { id: SCHEDULES, name: 'スケジュール' }];
-  const showSchedules = roomFilter === SCHEDULES;
+  const roomNav = [{ id: ALL_ROOMS, name: 'すべて' }, ...ROOMS, { id: AUTOMATIONS, name: 'オートメーション', short: '自動化' }];
+  const showAutomations = roomFilter === AUTOMATIONS;
   const navIcon = (id: string, size?: number) =>
-    id === ALL_ROOMS ? <NavAll size={size} /> : id === SCHEDULES ? <NavSchedule size={size} /> : <NavRoom size={size} />;
+    id === ALL_ROOMS ? <NavAll size={size} /> : id === AUTOMATIONS ? <NavAutomation size={size} /> : <NavRoom size={size} />;
 
   return (
     <div className="shell">
@@ -237,9 +237,9 @@ function Dashboard({ onAuthError }: { onAuthError: () => void }) {
           </div>
         </header>
 
-        {!showSchedules && <WeatherPanel />}
+        {!showAutomations && <WeatherPanel />}
 
-        {!showSchedules && today && <TaskPanel today={today} siteUrl={getConfig().mytaskSiteUrl ?? ''} />}
+        {!showAutomations && today && <TaskPanel today={today} siteUrl={getConfig().mytaskSiteUrl ?? ''} />}
 
         {data?.errors.map((e) => (
           <p key={e.provider} className="banner">
@@ -247,11 +247,11 @@ function Dashboard({ onAuthError }: { onAuthError: () => void }) {
           </p>
         ))}
 
-        {showSchedules && <SchedulePanel devices={data?.devices ?? null} onError={handleError} showToast={showToast} />}
+        {showAutomations && <AutomationPanel devices={data?.devices ?? null} onError={handleError} showToast={showToast} />}
 
-        {!showSchedules && !data && <p className="muted center-text">機器を読み込み中…</p>}
+        {!showAutomations && !data && <p className="muted center-text">機器を読み込み中…</p>}
 
-        {!showSchedules && data && (
+        {!showAutomations && data && (
           <div className={`rooms${visibleRooms.length > 1 ? ' rooms-split' : ''}`}>
             {visibleRooms.map((room) => (
               <RoomPanel key={room.id} room={room} devices={data.devices} onCommand={onCommand} />
@@ -260,12 +260,12 @@ function Dashboard({ onAuthError }: { onAuthError: () => void }) {
         )}
       </div>
 
-      {/* スマホ: 部屋とスケジュールの切り替えは下のタブ */}
+      {/* スマホ: 部屋とオートメーションの切り替えは下のタブ */}
       <nav className="tabbar" style={{ gridTemplateColumns: `repeat(${roomNav.length}, minmax(0, 1fr))` }} aria-label="画面の切り替え">
         {roomNav.map((r) => (
           <button key={r.id} className={r.id === roomFilter ? 'active' : ''} aria-current={r.id === roomFilter ? 'page' : undefined} onClick={() => chooseRoom(r.id)}>
             {navIcon(r.id, 24)}
-            <span>{r.name}</span>
+            <span>{'short' in r ? r.short : r.name}</span>
           </button>
         ))}
       </nav>

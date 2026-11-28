@@ -57,10 +57,10 @@ export class DashboardStack extends cdk.Stack {
     const wssoClientId = ssm.StringParameter.valueForStringParameter(this, '/wakalabo/auth/wsso-client-id');
     const ssoUrl = ssm.StringParameter.valueForStringParameter(this, '/wakalabo/auth/sso-url');
 
-    // ---------- スケジュールの保存先 (DynamoDB) ----------
-    // 件数が少なく読み書きも 1 分に 1 回程度なので、無料枠 (25 ユニット) の中で 1 ユニットずつ確保する。
+    // ---------- オートメーションの保存先 (DynamoDB) ----------
+    // 件数が少なく読み書きも 5 分に 1 回程度なので、無料枠 (25 ユニット) の中で 1 ユニットずつ確保する。
     // 利用者が作ったデータなので、スタックを消してもテーブルは残す (RETAIN)
-    const scheduleTable = new dynamodb.Table(this, 'Schedules', {
+    const automationTable = new dynamodb.Table(this, 'Automations', {
       partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PROVISIONED,
       readCapacity: 1,
@@ -75,7 +75,7 @@ export class DashboardStack extends cdk.Stack {
       runtime: lambda.Runtime.NODEJS_22_X,
       architecture: lambda.Architecture.ARM_64,
       memorySize: 256,
-      environment: { PARAM_PREFIX, SCHEDULE_TABLE: scheduleTable.tableName, NODE_OPTIONS: '--enable-source-maps' },
+      environment: { PARAM_PREFIX, AUTOMATION_TABLE: automationTable.tableName, NODE_OPTIONS: '--enable-source-maps' },
       // Lambda 標準の SDK は版が古いことがあるので、使う SDK も一緒にまとめる
       bundling: { minify: true, sourceMap: true, externalModules: [] },
     } satisfies Partial<nodejs.NodejsFunctionProps>;
@@ -87,7 +87,7 @@ export class DashboardStack extends cdk.Stack {
     const fn = new nodejs.NodejsFunction(this, 'ApiFunction', {
       ...lambdaDefaults,
       entry: path.join(root, 'api/src/handler.ts'),
-      // スケジュールの「今すぐ実行」で操作を順に送るため長め (API Gateway の上限 30 秒より短く)
+      // オートメーションの「今すぐ実行」で操作を順に送るため長め (API Gateway の上限 30 秒より短く)
       timeout: cdk.Duration.seconds(28),
       logGroup: new logs.LogGroup(this, 'ApiLogs', {
         retention: logs.RetentionDays.ONE_MONTH,
@@ -95,10 +95,11 @@ export class DashboardStack extends cdk.Stack {
       }),
     });
     fn.addToRolePolicy(tokenPolicy);
-    scheduleTable.grantReadWriteData(fn);
+    automationTable.grantReadWriteData(fn);
 
-    // ---------- スケジューラー (EventBridge で 1 分ごとに Lambda を起動) ----------
-    // 月 約 4.3 万回の起動で、Lambda の無料枠 (月 100 万回) に収まる。時刻が来ていなければ外部 API は呼ばない
+    // ---------- スケジューラー (EventBridge で 5 分ごとに Lambda を起動し、オートメーションを判定) ----------
+    // 月 約 8,600 回の起動で、Lambda の無料枠 (月 100 万回) に収まる。
+    // SwitchBot / Nature Remo の API は、状態を条件に使う機器があるときだけ、その機器の分だけ呼ぶ
     const schedulerFn = new nodejs.NodejsFunction(this, 'SchedulerFunction', {
       ...lambdaDefaults,
       entry: path.join(root, 'api/src/scheduler.ts'),
@@ -109,9 +110,10 @@ export class DashboardStack extends cdk.Stack {
       }),
     });
     schedulerFn.addToRolePolicy(tokenPolicy);
-    scheduleTable.grantReadWriteData(schedulerFn);
+    automationTable.grantReadWriteData(schedulerFn);
     new events.Rule(this, 'SchedulerTick', {
-      schedule: events.Schedule.rate(cdk.Duration.minutes(1)),
+      // rate(5 minutes) だと起動する分がずれるので、cron で :00, :05, :10 … にそろえる
+      schedule: events.Schedule.cron({ minute: '0/5' }),
       targets: [new targets.LambdaFunction(schedulerFn, { retryAttempts: 0 })],
     });
 
@@ -136,9 +138,9 @@ export class DashboardStack extends cdk.Stack {
       methods: [apigw.HttpMethod.POST],
       integration,
     });
-    api.addRoutes({ path: '/schedules', methods: [apigw.HttpMethod.GET, apigw.HttpMethod.POST], integration });
-    api.addRoutes({ path: '/schedules/{id}', methods: [apigw.HttpMethod.PUT, apigw.HttpMethod.DELETE], integration });
-    api.addRoutes({ path: '/schedules/{id}/run', methods: [apigw.HttpMethod.POST], integration });
+    api.addRoutes({ path: '/automations', methods: [apigw.HttpMethod.GET, apigw.HttpMethod.POST], integration });
+    api.addRoutes({ path: '/automations/{id}', methods: [apigw.HttpMethod.PUT, apigw.HttpMethod.DELETE], integration });
+    api.addRoutes({ path: '/automations/{id}/run', methods: [apigw.HttpMethod.POST], integration });
     const stage = api.defaultStage?.node.defaultChild as apigw.CfnStage;
     stage.defaultRouteSettings = { throttlingBurstLimit: 20, throttlingRateLimit: 10 };
 

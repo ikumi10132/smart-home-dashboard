@@ -4,9 +4,9 @@ import type {
   APIGatewayProxyStructuredResultV2,
 } from 'aws-lambda';
 import { clients, errorMessage, runActions, runCommand, validateCommand } from './clients.js';
-import { MAX_SCHEDULES, validateSchedule } from './schedule.js';
-import { createSchedule, deleteSchedule, listSchedules, updateSchedule } from './schedule-store.js';
-import type { Device, DevicesResponse, ProviderError, Schedule, ScheduleRunResult } from './types.js';
+import { MAX_AUTOMATIONS, validateAutomation } from './automation.js';
+import { createAutomation, deleteAutomation, listAutomations, updateAutomation } from './automation-store.js';
+import type { Automation, Device, DevicesResponse, ProviderError, ScheduleRunResult } from './types.js';
 
 const json = (statusCode: number, body: unknown): APIGatewayProxyStructuredResultV2 => ({
   statusCode,
@@ -47,33 +47,33 @@ async function sendCommand(rawId: string, body: string | undefined): Promise<voi
   await runCommand(decodeURIComponent(rawId), validateCommand(JSON.parse(body ?? '{}')));
 }
 
-// ---------- スケジュール ----------
+// ---------- オートメーション ----------
 
-/** 画面に返す形 (内部用の lastRunKey は返さない) */
-async function getSchedules(): Promise<Schedule[]> {
-  return (await listSchedules()).map(({ lastRunKey: _, ...s }) => s);
+/** 画面に返す形 (判定用の内部の値は返さない) */
+async function getAutomations(): Promise<Automation[]> {
+  return (await listAutomations()).map(({ lastRunKey: _k, triggerMet: _m, ...a }) => a);
 }
 
-async function addSchedule(body: string | undefined): Promise<{ id: string }> {
-  const input = validateSchedule(JSON.parse(body ?? '{}'));
-  if ((await listSchedules()).length >= MAX_SCHEDULES) {
-    throw new Error(`スケジュールは ${MAX_SCHEDULES} 件までです`);
+async function addAutomation(body: string | undefined): Promise<{ id: string }> {
+  const input = validateAutomation(JSON.parse(body ?? '{}'));
+  if ((await listAutomations()).length >= MAX_AUTOMATIONS) {
+    throw new Error(`オートメーションは ${MAX_AUTOMATIONS} 件までです`);
   }
   const id = randomUUID();
-  await createSchedule(id, input);
+  await createAutomation(id, input);
   return { id };
 }
 
-async function editSchedule(id: string, body: string | undefined): Promise<void> {
-  const input = validateSchedule(JSON.parse(body ?? '{}'));
-  if (!(await updateSchedule(id, input))) throw new Error('スケジュールが見つかりません');
+async function editAutomation(id: string, body: string | undefined): Promise<void> {
+  const input = validateAutomation(JSON.parse(body ?? '{}'));
+  if (!(await updateAutomation(id, input))) throw new Error('オートメーションが見つかりません');
 }
 
-/** 「今すぐ実行」。試しに動かすためのもので、実行の記録 (lastRun) は変えない */
-async function runScheduleNow(id: string): Promise<ScheduleRunResult> {
-  const s = (await listSchedules()).find((x) => x.id === id);
-  if (!s) throw new Error('スケジュールが見つかりません');
-  const results = await runActions(s.actions);
+/** 「今すぐ実行」。きっかけと条件は見ずに操作だけ試す。前回の結果 (lastRun) は変えない */
+async function runAutomationNow(id: string): Promise<ScheduleRunResult> {
+  const a = (await listAutomations()).find((x) => x.id === id);
+  if (!a) throw new Error('オートメーションが見つかりません');
+  const results = await runActions(a.actions);
   return { at: new Date().toISOString(), ok: results.every((r) => r.ok), results };
 }
 
@@ -105,18 +105,18 @@ export async function handler(
       case 'POST /devices/{id}/command':
         await sendCommand(event.pathParameters?.id ?? '', event.body);
         return json(200, { ok: true });
-      case 'GET /schedules':
-        return json(200, { schedules: await getSchedules() });
-      case 'POST /schedules':
-        return json(200, await addSchedule(event.body));
-      case 'PUT /schedules/{id}':
-        await editSchedule(event.pathParameters?.id ?? '', event.body);
+      case 'GET /automations':
+        return json(200, { automations: await getAutomations() });
+      case 'POST /automations':
+        return json(200, await addAutomation(event.body));
+      case 'PUT /automations/{id}':
+        await editAutomation(event.pathParameters?.id ?? '', event.body);
         return json(200, { ok: true });
-      case 'DELETE /schedules/{id}':
-        await deleteSchedule(event.pathParameters?.id ?? '');
+      case 'DELETE /automations/{id}':
+        await deleteAutomation(event.pathParameters?.id ?? '');
         return json(200, { ok: true });
-      case 'POST /schedules/{id}/run':
-        return json(200, await runScheduleNow(event.pathParameters?.id ?? ''));
+      case 'POST /automations/{id}/run':
+        return json(200, await runAutomationNow(event.pathParameters?.id ?? ''));
       default:
         return json(404, { message: 'Not Found' });
     }

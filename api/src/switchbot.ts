@@ -149,6 +149,14 @@ export class SwitchBotClient {
     }
   }
 
+  /** 1 台だけ状態を読む (オートメーションの条件の判定用) */
+  async state(deviceId: string): Promise<DeviceState> {
+    const status = await cached(`switchbot:status:${deviceId}`, STATUS_TTL, () =>
+      this.request<Record<string, unknown>>(`/devices/${deviceId}/status`),
+    );
+    return toState(status);
+  }
+
   async listDevices(): Promise<Device[]> {
     const [list, scenes] = await Promise.all([
       cached('switchbot:list', LIST_TTL, () => this.request<DeviceList>('/devices')),

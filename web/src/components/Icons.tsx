@@ -147,5 +147,5 @@ export const NavLogout = ({ size = 20 }: { size?: number }) =>
   navSvg(size, <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5M21 12H9" /></>);
 export const NavApps = ({ size = 20 }: { size?: number }) =>
   navSvg(size, <><path d="M15 3h6v6M10 14L21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></>);
-export const NavSchedule = ({ size = 20 }: { size?: number }) =>
-  navSvg(size, <><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2.5M5 3 2 6M19 3l3 3" /></>);
+export const NavAutomation = ({ size = 20 }: { size?: number }) =>
+  navSvg(size, <><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" /></>);

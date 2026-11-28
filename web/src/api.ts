@@ -1,4 +1,4 @@
-import type { Command, DevicesResponse, Schedule, ScheduleInput, ScheduleRunResult } from '../../api/src/types';
+import type { Automation, AutomationInput, Command, DevicesResponse, ScheduleRunResult } from '../../api/src/types';
 import { getAccessToken } from './auth';
 import { getConfig } from './config';
 
@@ -26,18 +26,18 @@ export const sendCommand = (deviceId: string, command: Command) =>
   });
 
 
-// ---------- スケジュール ----------
+// ---------- オートメーション ----------
 
-export const fetchSchedules = () => call<{ schedules: Schedule[] }>('/schedules').then((r) => r.schedules);
+export const fetchAutomations = () => call<{ automations: Automation[] }>('/automations').then((r) => r.automations);
 
-export const createSchedule = (input: ScheduleInput) =>
-  call<{ id: string }>('/schedules', { method: 'POST', body: JSON.stringify(input) });
+export const createAutomation = (input: AutomationInput) =>
+  call<{ id: string }>('/automations', { method: 'POST', body: JSON.stringify(input) });
 
-export const updateSchedule = (id: string, input: ScheduleInput) =>
-  call<{ ok: true }>(`/schedules/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) });
+export const updateAutomation = (id: string, input: AutomationInput) =>
+  call<{ ok: true }>(`/automations/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) });
 
-export const deleteSchedule = (id: string) =>
-  call<{ ok: true }>(`/schedules/${encodeURIComponent(id)}`, { method: 'DELETE' });
+export const deleteAutomation = (id: string) =>
+  call<{ ok: true }>(`/automations/${encodeURIComponent(id)}`, { method: 'DELETE' });
 
-export const runSchedule = (id: string) =>
-  call<ScheduleRunResult>(`/schedules/${encodeURIComponent(id)}/run`, { method: 'POST' });
+export const runAutomation = (id: string) =>
+  call<ScheduleRunResult>(`/automations/${encodeURIComponent(id)}/run`, { method: 'POST' });
